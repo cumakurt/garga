@@ -8,7 +8,8 @@ explicit single-credential verification, an isolated opt-in credential audit, YA
 vulnerability signatures with semantic version matching and capability-aware evaluation,
 streaming console, JSON, JSONL, CSV, and standalone HTML reports, signed signature-database
 updates, structured JSON logs with a bounded scanner summary, captured performance baselines,
-and an opt-in Elasticsearch container matrix. A product `scan` command is not exposed yet.
+and an opt-in Elasticsearch container matrix. Cross-platform release archives, checksums, and
+SBOMs are produced by `make release`. A product `scan` command is not exposed yet.
 
 ## Safety boundary
 
@@ -17,6 +18,7 @@ default scan path is non-destructive: it will not exploit vulnerabilities, modif
 write or delete data, or perform implicit credential spraying.
 
 See [SECURITY.md](SECURITY.md) for vulnerability reporting and operational safety guidance.
+Operator authorization and handling rules are in [docs/responsible-use.md](docs/responsible-use.md).
 
 ## Requirements
 
@@ -75,6 +77,10 @@ shellcheck run.sh tests/run_sh_test.sh
 `make integration` is optional. It starts Elasticsearch containers and may pull
 `docker.elastic.co` images; see [docs/integration.md](docs/integration.md).
 
+`make release VERSION=vX.Y.Z` writes `dist/` and is documented in
+[docs/release.md](docs/release.md). `make fuzz-smoke` and `make vulncheck` are release gates;
+`vulncheck` downloads the Go vulnerability database.
+
 The implementation roadmap, acceptance criteria, and release gates are defined in
 [garga-MASTER-PLAN.md](garga-MASTER-PLAN.md).
 
@@ -126,6 +132,9 @@ Captured parser, fingerprint, version, JSONL, and worker-pool timings are docume
 
 The opt-in Elasticsearch container matrix (authentication and TLS on/off) is documented in
 [docs/integration.md](docs/integration.md).
+
+Release archives, checksums, SBOMs, and rollback are documented in [docs/release.md](docs/release.md).
+Authorized-use expectations for operators are in [docs/responsible-use.md](docs/responsible-use.md).
 
 ## Contributing and license
 

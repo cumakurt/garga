@@ -35,12 +35,15 @@ go test -run='^$' -bench=. -benchmem ./internal/target ./internal/fingerprint ./
 go build ./...
 go mod tidy -diff
 shellcheck run.sh tests/run_sh_test.sh
+make fuzz-smoke
+make release VERSION=v0.0.0-test
 ```
 
 `shellcheck` is required for launcher changes. `make bench` is opt-in: timings are machine-specific
 and are recorded in [docs/performance.md](docs/performance.md). `make integration` is opt-in:
 it requires Docker, may pull Elasticsearch images, and is documented in
-[docs/integration.md](docs/integration.md). Longer fuzz campaigns remain opt-in and must be
+[docs/integration.md](docs/integration.md). `make vulncheck` downloads the Go vulnerability
+database and is required before a tagged release. Longer fuzz campaigns remain opt-in and must be
 documented in the pull request when applicable.
 
 ## Engineering expectations

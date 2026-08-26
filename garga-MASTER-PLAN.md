@@ -82,6 +82,9 @@ Work Package 7.2 added capability-aware signature evaluation and finding convers
 Work Package 8.1 added streaming console, JSON, JSONL, CSV, and standalone HTML reporters with schema `0.1`.
 Work Package 8.2 added signed signature-database updates with Ed25519 verification, staging, and rollback.
 Work Package 9.1 added structured redacted JSON logs and a bounded-cardinality scanner summary.
+Work Package 9.2 added captured performance baselines. Work Package 10.1 added the opt-in
+Elasticsearch container matrix. Work Package 10.2 added reproducible cross-platform release
+archives, checksums, SBOMs, and the tag-triggered publish workflow.
 
 ### 3.1 Decisions in force
 
@@ -615,7 +618,7 @@ boundaries and acceptance tests are already stable.
 - Unit tests remain independent of Docker and the public internet.
 - Integration failures preserve container and tool diagnostics without secrets.
 
-#### [ ] WP 10.2: Release engineering
+#### [x] WP 10.2: Release engineering
 
 **Depends on:** all previous work packages
 
@@ -753,8 +756,8 @@ Risk entries are reviewed when a work package changes probability, impact, or mi
 
 ## 13. Immediate execution queue
 
-1. Implement WP 10.2 release engineering.
-2. Preserve the tested transport/scanner safety boundaries in every product-specific request.
+1. Preserve the tested transport/scanner safety boundaries in every product-specific request.
+2. Do not add a `scan` CLI until a later, explicit work package defines that public command.
 
 The implementation cadence is always:
 

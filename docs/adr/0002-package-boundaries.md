@@ -29,6 +29,7 @@ Application code lives under `internal/`; garga does not expose a library API in
 - `internal/logging` emits structured JSON logs with secret redaction and closed-enum labels.
 - `internal/report` streams findings to console, JSON, JSONL, CSV, and standalone HTML without depending on scanner implementations.
 - `internal/integration` holds opt-in Elasticsearch container tests. It is not imported by the CLI or scanner.
+- `scripts/release` builds distribution archives. It is not part of the CLI and must not import Cobra.
 - scanner orchestration must not implement fingerprint, check, vulnerability, or report semantics.
 - reporters consume domain results and must not depend on scanner implementations.
 - only `internal/cli` and `cmd/garga` may import Cobra.

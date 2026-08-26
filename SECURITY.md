@@ -43,5 +43,6 @@ report or test fixture.
 
 ## Supported versions
 
-The project is pre-release and does not yet publish security-supported binary versions. Once
-releases begin, this section will list supported versions and disclosure timelines.
+The project is pre-release. Until the first tagged binary, only `main` is assessed for security
+fixes. After tags exist, this section will list supported versions and disclosure timelines.
+See [docs/release.md](docs/release.md) for artifact verification and rollback.
