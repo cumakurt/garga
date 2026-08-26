@@ -1,0 +1,52 @@
+name: Bug report
+description: Report a reproducible defect that does not contain sensitive security details.
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: Do not include credentials, private targets, customer data, or undisclosed vulnerabilities.
+  - type: input
+    id: version
+    attributes:
+      label: garga version
+      description: Paste the output of `garga version` or provide the commit hash.
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: Operating system, architecture, and Go version when building from source.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Observed behavior
+      description: Describe what happened using sanitized inputs and output.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Provide deterministic steps that use only systems you are authorized to assess.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation
+      options:
+        - label: I removed credentials, tokens, private target details, and sensitive response data.
+          required: true
+        - label: This report does not disclose an unpatched security vulnerability.
+          required: true

@@ -1,0 +1,39 @@
+name: Feature request
+description: Propose a safe, bounded improvement for an authorized assessment workflow.
+title: "feature: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the operator need without proposing a broad speculative abstraction.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Proposed behavior
+      description: Include CLI, configuration, output, compatibility, and failure semantics when relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Safety and resource impact
+      description: Explain methods, target state, credentials, rates, timeouts, concurrency, and data handling.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Note existing patterns or simpler approaches that were considered.
+  - type: checkboxes
+    id: authorization
+    attributes:
+      label: Authorized-use confirmation
+      options:
+        - label: The requested behavior is intended only for systems the operator owns or is authorized to assess.
+          required: true

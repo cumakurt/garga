@@ -1,0 +1,28 @@
+name: Integration
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  elasticsearch:
+    name: Elasticsearch matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.27.x"
+          cache: true
+
+      - name: Raise vm.max_map_count
+        run: sudo sysctl -w vm.max_map_count=262144
+
+      - name: Run Elasticsearch integration matrix
+        run: make integration

@@ -1,0 +1,12 @@
+{
+  "name": "fixture-kibana",
+  "uuid": "00000000-0000-0000-0000-000000000000",
+  "version": {
+    "number": "9.4.4"
+  },
+  "status": {
+    "overall": {
+      "level": "available"
+    }
+  }
+}
