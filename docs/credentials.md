@@ -49,3 +49,16 @@ status code is classified.
 
 Trying more than one credential requires the isolated `garga auth-audit` command documented in
 [credential-audit.md](credential-audit.md). That path is never invoked from a normal scan.
+
+## Health assessment credentials
+
+`garga health` may send one optional credential on GET collectors. Prefer stdin so secrets do not
+enter shell history. Supported mechanisms are Basic Auth (`--username` plus `--password-stdin`),
+`--api-key-stdin`, and `--bearer-token-stdin`. Only one mechanism may be selected.
+
+The automation variables `ESHEALTH_USERNAME`, `ESHEALTH_PASSWORD`, `ESHEALTH_API_KEY`, and
+`ESHEALTH_BEARER_TOKEN` are accepted. They are never read from garga YAML or `GARGA_*` settings,
+and they are never written to logs, snapshots, or reports. Credentials over HTTP are refused
+unless `--allow-plaintext-auth` is set; that override is reported as a critical finding.
+
+Details: [health.md](health.md).

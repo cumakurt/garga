@@ -21,6 +21,7 @@ type Kind string
 const (
 	KindBasic  Kind = "basic"
 	KindAPIKey Kind = "api_key"
+	KindBearer Kind = "bearer"
 )
 
 // Secret holds one explicit credential and never formats its raw value.
@@ -61,6 +62,17 @@ func NewAPIKey(apiKey []byte) (*Secret, error) {
 		encoded = base64.StdEncoding.EncodeToString(cloned)
 	}
 	return &Secret{kind: KindAPIKey, secret: cloned, header: "ApiKey " + encoded}, nil
+}
+
+// NewBearer creates a Bearer token credential for an explicitly authenticated request.
+func NewBearer(token []byte) (*Secret, error) {
+	if err := validateSecret(token); err != nil {
+		zero(token)
+		return nil, err
+	}
+	cloned := bytes.Clone(token)
+	zero(token)
+	return &Secret{kind: KindBearer, secret: cloned, header: "Bearer " + string(cloned)}, nil
 }
 
 func (secret *Secret) Kind() Kind {
@@ -118,6 +130,8 @@ func (secret *Secret) redactedIdentity() string {
 		return "credential:basic"
 	case KindAPIKey:
 		return "credential:api_key"
+	case KindBearer:
+		return "credential:bearer"
 	default:
 		return "credential:" + redacted
 	}

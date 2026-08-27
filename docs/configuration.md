@@ -10,7 +10,9 @@ garga resolves configuration in this order, from lowest to highest precedence:
 The configuration is fully resolved and validated before a command may start network activity.
 `garga scan` and `garga vuln` bind `--concurrency`, `--rate`, `--per-host-rate`, and `--format`
 to the typed override layer. `garga fingerprint` also binds `--threshold` to
-`fingerprint.threshold`. `garga report` uses `output.format` when `--format` is omitted.
+`fingerprint.threshold`. `garga health` binds `--profile`, `--concurrency`,
+`--requests-per-second`, `--top-n`, `--max-response-bytes`, and `--request-timeout`.
+`garga report` uses `output.format` when `--format` is omitted.
 
 ## Selecting a file
 
@@ -34,8 +36,18 @@ all built-in defaults.
 | `scanner.retries` | `GARGA_RETRIES` | `1` | `0` through `10` |
 | `scanner.max_response_bytes` | `GARGA_MAX_RESPONSE_BYTES` | `524288` | `1024` through `10485760` bytes |
 | `fingerprint.threshold` | `GARGA_FINGERPRINT_THRESHOLD` | `80` | `1` through `100` |
+| `health.profile` | `GARGA_HEALTH_PROFILE` | `standard` | `development`, `small`, `standard`, `large`, `logging`, `search`, `security`, `production` |
+| `health.concurrency` | `GARGA_HEALTH_CONCURRENCY` | `4` | `1` through `32` |
+| `health.requests_per_second` | `GARGA_HEALTH_RATE` | `5` | greater than `0`, at most `100` |
+| `health.top_n` | `GARGA_HEALTH_TOP_N` | `5` | `1` through `100` |
+| `health.max_response_bytes` | `GARGA_HEALTH_MAX_RESPONSE_BYTES` | `33554432` | `1024` through `134217728` bytes |
 | `output.format` | `GARGA_OUTPUT_FORMAT` | `console` | `console`, `json`, `jsonl`, `csv`, `html` |
 | `logging.level` | `GARGA_LOG_LEVEL` | `warn` | `error`, `warn`, `info`, `debug` |
+
+Health thresholds are nested below `health.thresholds`. Percentage triplets must be ordered as
+`warning < high < critical`. Shard sizes accept decimal (`GB`, `MB`) and binary (`GiB`, `MiB`)
+units. Duration values use Go duration syntax. See [health.md](health.md) for the complete health
+threshold set and profile behavior.
 
 The connect timeout must not exceed the request timeout. Duration values use Go duration syntax,
 for example `500ms`, `2s`, or `1m30s`.
@@ -46,7 +58,11 @@ This general configuration model deliberately contains no credentials, authoriza
 API keys, or passwords. Authentication input uses `garga auth-check` and `garga auth-audit` with
 stdin secrets as documented in [credentials.md](credentials.md) and
 [credential-audit.md](credential-audit.md). Scanner rate settings do not apply to credential
-audit. `garga scan`, `garga fingerprint`, and `garga vuln` do not accept credentials.
+audit. `garga scan`, `garga fingerprint`, and `garga vuln` do not accept credentials. `garga health`
+keeps authentication outside this configuration model: stdin is preferred, while the dedicated
+`ESHEALTH_USERNAME`, `ESHEALTH_PASSWORD`, `ESHEALTH_API_KEY`, and `ESHEALTH_BEARER_TOKEN`
+variables exist for automation. Those variables are never included in configuration formatting,
+logs, snapshots, or reports.
 Configuration parse and validation errors
 identify the field or environment variable but never echo its supplied value.
 

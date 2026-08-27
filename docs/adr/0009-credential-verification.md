@@ -16,6 +16,8 @@ belongs in a separate opt-in engine with no call path from normal commands.
 - Authentication material lives in `internal/credential`, not in `config.Config`.
 - `garga auth-check` accepts Basic Auth via `--username` plus `--password-stdin`, or an API key
   via `--api-key-stdin`. No `--password` flag is provided.
+- `garga health` may use the same secret types, plus Bearer tokens via `--bearer-token-stdin` or
+  `ESHEALTH_*` automation variables. Health authentication remains outside YAML/`GARGA_*` config.
 - Verification is one GET to `/_security/_authenticate` through the shared transport.
 - Results are `valid`, `invalid`, or `security_unavailable`. They contain no secret, username,
   or response body.

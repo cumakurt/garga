@@ -141,11 +141,14 @@ func Format(snapshot Snapshot, elapsed time.Duration, color, ascii bool) string 
 	percent := 0
 	filled := 0
 	if total > 0 {
-		percent = int((snapshot.Completed * 100) / total)
+		// Convert after division so very large counters cannot overflow during
+		// the display-only scale calculation.
+		ratio := float64(snapshot.Completed) / float64(total)
+		percent = int(ratio * 100)
 		if percent > 100 {
 			percent = 100
 		}
-		filled = int((snapshot.Completed * uint64(barWidth)) / total)
+		filled = int(ratio * float64(barWidth))
 		if filled > barWidth {
 			filled = barWidth
 		}

@@ -91,7 +91,8 @@ signature-only matching. Work Package 12.1 added the committed golangci-lint con
 pull-request `govulncheck`. Work Package 12.2 made the shared HTTP transport reject non-GET
 methods and request bodies. Work Package 12.3 made the Elasticsearch GET path catalog the single
 source for Authenticate and extra probes. Work Package 12.4 added `make signatures-validate` for
-committed YAML fixtures.
+committed YAML fixtures. Work Package 13.1 added `garga health`, a GET-only cluster assessment
+engine with centralized collection, 37 checkers, and an independent health-report schema.
 
 ### 3.1 Decisions in force
 
@@ -141,6 +142,9 @@ internal/cli ---> internal/report
 internal/cli ---> internal/update ---> internal/vulnerability
                                   ---> internal/transport
 internal/cli ---> internal/logging
+internal/cli ---> internal/health ---> internal/transport
+                                 ---> internal/credential
+                                 ---> internal/config
 internal/scanner ---> internal/logging
 
 internal/model is a leaf package and performs no I/O.
@@ -154,12 +158,14 @@ Dependency rules:
 - Only `internal/cli` and `cmd/garga` may depend on Cobra.
 - Transport code owns network limits, redirect policy, and connection reuse.
 - Check implementations own security semantics; the scanner only orchestrates them.
-- `internal/credential` is used by explicit `auth-check` verification, not by scanner orchestration.
+- `internal/credential` is used by explicit `auth-check` verification and optional `garga health`
+  authentication, not by scanner orchestration.
 - `internal/credential/audit` is used only by explicit `auth-audit` and has no call path from scan.
 - `internal/vulnerability` loads signatures, matches versions, and converts potential findings.
   It does not confirm exploits from version evidence.
 - `internal/update` fetches and activates signed signature bundles. It is not on the scan path.
 - `internal/logging` emits structured, redacted JSON logs. It must not import scanner or Cobra.
+- `internal/health` checkers must not perform Elasticsearch I/O; the collector owns GET requests.
 - Import cycles are release-blocking defects.
 
 The target repository shape is introduced incrementally. Empty placeholder packages are not
@@ -267,6 +273,7 @@ An active-safe check:
 garga
 ├── scan
 ├── fingerprint
+├── health
 ├── auth-check
 ├── auth-audit
 ├── vuln
@@ -286,8 +293,11 @@ Planned exit codes:
 | 1 | Unexpected internal or operational failure |
 | 2 | Invalid CLI, configuration, or target input |
 | 3 | Scan completed with partial operational failures |
-| 4 | Signature update or validation failure |
+| 4 | Signature update or validation failure. `garga health` also uses 4 for connection, authentication, product, configuration, or collection errors. |
 | 130 | Interrupted by the user |
+
+`garga health --fail-on` overlays 1/2/3 with medium/high/critical severity when the assessment
+itself completed. Those codes keep their scan meanings for every other command.
 
 Global configuration precedence is `CLI > environment > config file > built-in defaults`.
 `--insecure` disables only TLS certificate verification; it never disables other safety controls.
@@ -758,6 +768,26 @@ boundaries and acceptance tests are already stable.
 - The validator does not import Cobra or the CLI.
 - `make check` and `make test-race` pass.
 
+#### [x] WP 13.1: Read-only health assessment command
+
+**Depends on:** WP 12.4
+
+**Deliverables**
+
+- Public `garga health TARGET` command for one Elasticsearch cluster.
+- Centralized GET-only collector, version-tolerant snapshot, 37 I/O-free checkers, scoring,
+  correlation, and terminal/JSON/HTML/Markdown reports with a timestamped HTML artifact.
+- Optional authentication via stdin or `ESHEALTH_*`, refused over HTTP unless
+  `--allow-plaintext-auth` is set and reported as critical.
+- Secret-free baseline/delta snapshots, profiles, thresholds, and `--deep` high-cost collectors.
+
+**Acceptance criteria**
+
+- Product identification rejects OpenSearch and Elasticsearch before 7.17.
+- Checkers never perform network I/O; missing collectors skip affected checks.
+- Credentials never appear in reports, logs, or baseline files.
+- `make check` and `make test-race` pass.
+
 ## 8. Testing strategy
 
 | Layer | Purpose | Required tools |
@@ -837,8 +867,8 @@ Review findings are handled in this order:
 
 ### Functional
 
-- All work packages through WP 12.4 are complete.
-- Target parsing, scanning, fingerprinting, checks, vulnerability matching, updates, and reporters
+- All work packages through WP 13.1 are complete.
+- Target parsing, scanning, fingerprinting, health assessment, checks, vulnerability matching, updates, and reporters
   meet their acceptance criteria.
 - Exit codes and machine-output schemas are documented and regression-tested.
 
@@ -884,8 +914,8 @@ Risk entries are reviewed when a work package changes probability, impact, or mi
 
 1. Adding an Elasticsearch product GET still requires a catalog entry in `internal/capability`
    and an active-safe test. Do not duplicate Authenticate as Get User.
-2. The planned v1 CLI tree is implemented. Do not add authenticated scan or extra product
-   commands until a later, explicit work package defines them.
+2. The planned CLI tree is implemented, including `garga health`. Do not add authenticated scan
+   or extra product commands until a later, explicit work package defines them.
 
 The implementation cadence is always:
 

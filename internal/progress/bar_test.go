@@ -2,6 +2,7 @@ package progress
 
 import (
 	"bytes"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -46,6 +47,15 @@ func TestFormatUnicodeBar(t *testing.T) {
 	}
 	if !strings.Contains(line, "10/10") || !strings.Contains(line, "100%") {
 		t.Fatalf("complete bar = %q", line)
+	}
+}
+
+func TestFormatHandlesMaximumCountersWithoutOverflow(t *testing.T) {
+	t.Parallel()
+
+	line := Format(Snapshot{Submitted: math.MaxUint64, Completed: math.MaxUint64}, time.Second, false, true)
+	if !strings.Contains(line, "100%") || !strings.Contains(line, strings.Repeat("#", barWidth)) {
+		t.Fatalf("maximum-counter bar = %q", line)
 	}
 }
 

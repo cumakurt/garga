@@ -6,6 +6,14 @@ All notable changes to garga are documented in this file.
 
 ### Added
 
+- `garga health` advanced read-only Elasticsearch assessment with centralized collection and
+  normalization, 37 version-aware health checkers, weighted root-cause scoring, correlation,
+  partial-failure coverage, scanner telemetry, terminal/JSON/HTML/Markdown reports, configurable
+  profiles and thresholds, optional deep collection, and secret-free baseline/delta snapshots.
+- Every completed health assessment writes a timestamped, owner-only standalone HTML artifact in
+  the current directory. The responsive light-theme report embeds `garga.png` and provides an
+  executive dashboard, detailed evidence, correlations, remediation, coverage, and telemetry.
+
 - Cross-platform release archives, SHA-256 checksums, SPDX SBOMs, and an optional GPG signature
   of `SHA256SUMS`.
 - Responsible-use guidance and a documented binary/signature rollback procedure.

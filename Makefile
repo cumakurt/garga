@@ -1,6 +1,6 @@
 GO ?= go
 BINARY ?= bin/garga
-GO_FILES := $(shell find cmd internal scripts -name '*.go' -type f)
+GO_FILES := $(shell find cmd internal scripts -name '*.go' -type f) $(wildcard *.go)
 FUZZ_TIME ?= 5s
 VERSION ?=
 RELEASE_COMMIT ?=

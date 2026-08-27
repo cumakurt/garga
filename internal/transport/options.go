@@ -18,7 +18,7 @@ const (
 	defaultMaxResponseHeaders = 64 * 1024
 	maxRedirects              = 20
 	maxUserAgentBytes         = 256
-	maxTransportResponseBytes = 10 * 1024 * 1024
+	maxTransportResponseBytes = 128 * 1024 * 1024
 	maxTransportHeaderBytes   = 1024 * 1024
 )
 

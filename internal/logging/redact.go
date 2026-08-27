@@ -9,6 +9,8 @@ var sensitiveKeys = map[string]struct{}{
 	"authorization":       {},
 	"proxy-authorization": {},
 	"cookie":              {},
+	"credential":          {},
+	"credentials":         {},
 	"set-cookie":          {},
 	"password":            {},
 	"passwd":              {},

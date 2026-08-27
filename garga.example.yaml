@@ -11,6 +11,57 @@ scanner:
 fingerprint:
   threshold: 80
 
+health:
+  profile: standard
+  concurrency: 4
+  requests_per_second: 5
+  top_n: 5
+  max_response_bytes: 33554432
+  thresholds:
+    jvm:
+      warning: 75
+      high: 85
+      critical: 95
+    memory:
+      warning: 90
+      high: 95
+      critical: 98
+    disk:
+      warning: 75
+      high: 85
+      critical: 95
+    cpu:
+      warning: 75
+      high: 90
+      critical: 98
+    file_descriptors:
+      warning: 70
+      high: 85
+      critical: 95
+    deleted_documents:
+      warning: 0.20
+      high: 0.40
+    shard_size:
+      small: 1GB
+      large_warning: 50GB
+      large_high: 100GB
+    shard_imbalance:
+      warning: 0.25
+      high: 0.50
+    disk_imbalance:
+      warning: 15
+      high: 30
+    certificate:
+      warning: 30
+      high: 14
+      critical: 7
+    pending_task_warning: 30s
+    pending_task_high: 2m
+    long_task_warning: 30m
+    backup_warning: 72h
+    backup_high: 168h
+    thread_pool_queue_high: 100
+
 output:
   format: console
 

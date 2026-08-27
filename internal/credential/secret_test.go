@@ -38,6 +38,19 @@ func TestNewBasicAndAPIKey(t *testing.T) {
 	if err != nil || !strings.HasPrefix(header, "ApiKey ") {
 		t.Fatalf("API key Authorization = %q, err = %v", header, err)
 	}
+
+	bearerToken := []byte("credential-canary")
+	bearer, err := NewBearer(bearerToken)
+	if err != nil {
+		t.Fatalf("NewBearer() error = %v", err)
+	}
+	if string(bearerToken) == "credential-canary" {
+		t.Fatal("NewBearer() did not clear the input token")
+	}
+	header, err = bearer.AuthorizationHeader()
+	if err != nil || !strings.HasPrefix(header, "Bearer ") || bearer.Kind() != KindBearer {
+		t.Fatalf("Bearer Authorization = %q, kind = %q, err = %v", header, bearer.Kind(), err)
+	}
 }
 
 func TestSecretFormattingNeverLeaksMaterial(t *testing.T) {
@@ -75,6 +88,9 @@ func TestNewSecretValidation(t *testing.T) {
 	}
 	if _, err := NewAPIKey(nil); err == nil {
 		t.Fatal("NewAPIKey() accepted an empty key")
+	}
+	if _, err := NewBearer(nil); err == nil {
+		t.Fatal("NewBearer() accepted an empty token")
 	}
 }
 

@@ -1,0 +1,15 @@
+{
+  "name": "es8-node",
+  "cluster_name": "es8-cluster",
+  "cluster_uuid": "es8-cluster-uuid",
+  "version": {
+    "number": "8.19.19",
+    "build_flavor": "default",
+    "build_type": "docker",
+    "build_hash": "es8hash",
+    "lucene_version": "9.12.3",
+    "minimum_wire_compatibility_version": "7.17.0",
+    "minimum_index_compatibility_version": "7.0.0"
+  },
+  "tagline": "You Know, for Search"
+}

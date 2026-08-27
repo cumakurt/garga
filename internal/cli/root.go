@@ -15,6 +15,7 @@ const (
 	ExitInternalError  = 1
 	ExitInvalidInput   = 2
 	ExitPartialFailure = 3
+	ExitHealthError    = 4
 	ExitInterrupted    = 130
 )
 
@@ -97,6 +98,7 @@ func NewRootCommand(buildInfo BuildInfo) *cobra.Command {
 	cmd.AddCommand(newAuthCheckCommand(normalized))
 	cmd.AddCommand(newAuthAuditCommand(normalized))
 	cmd.AddCommand(newVulnCommand(normalized))
+	cmd.AddCommand(newHealthCommand(normalized))
 	cmd.AddCommand(newReportCommand())
 	cmd.AddCommand(newUpdateCommand(normalized))
 	cmd.AddCommand(newVersionCommand(normalized))

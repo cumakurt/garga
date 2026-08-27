@@ -44,6 +44,9 @@ func TestExecuteHelp(t *testing.T) {
 	if !strings.Contains(stdout.String(), "vuln") {
 		t.Errorf("help output %q does not list vuln command", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "health") {
+		t.Errorf("help output %q does not list health command", stdout.String())
+	}
 	if !strings.Contains(stdout.String(), "version") {
 		t.Errorf("help output %q does not list version command", stdout.String())
 	}

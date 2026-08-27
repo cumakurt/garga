@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"regexp"
 	"strconv"
@@ -76,6 +77,7 @@ func (loader *Loader) Load(options Options) (Config, error) {
 type filePatch struct {
 	Scanner     *scannerPatch     `yaml:"scanner"`
 	Fingerprint *fingerprintPatch `yaml:"fingerprint"`
+	Health      *healthPatch      `yaml:"health"`
 	Output      *outputPatch      `yaml:"output"`
 	Logging     *loggingPatch     `yaml:"logging"`
 }
@@ -92,6 +94,62 @@ type scannerPatch struct {
 
 type fingerprintPatch struct {
 	Threshold *int `yaml:"threshold"`
+}
+
+type healthPatch struct {
+	Profile           *string          `yaml:"profile"`
+	Concurrency       *int             `yaml:"concurrency"`
+	RequestsPerSecond *float64         `yaml:"requests_per_second"`
+	TopN              *int             `yaml:"top_n"`
+	MaxResponseBytes  *int64           `yaml:"max_response_bytes"`
+	Thresholds        *thresholdsPatch `yaml:"thresholds"`
+}
+
+type thresholdsPatch struct {
+	JVM                 *percentThresholdPatch   `yaml:"jvm"`
+	Memory              *percentThresholdPatch   `yaml:"memory"`
+	Disk                *percentThresholdPatch   `yaml:"disk"`
+	CPU                 *percentThresholdPatch   `yaml:"cpu"`
+	FileDescriptors     *percentThresholdPatch   `yaml:"file_descriptors"`
+	DeletedDocuments    *ratioThresholdPatch     `yaml:"deleted_documents"`
+	ShardSize           *shardSizeThresholdPatch `yaml:"shard_size"`
+	ShardImbalance      *variationThresholdPatch `yaml:"shard_imbalance"`
+	DiskImbalance       *variationThresholdPatch `yaml:"disk_imbalance"`
+	Certificate         *daysThresholdPatch      `yaml:"certificate"`
+	PendingTaskWarning  *string                  `yaml:"pending_task_warning"`
+	PendingTaskHigh     *string                  `yaml:"pending_task_high"`
+	LongTaskWarning     *string                  `yaml:"long_task_warning"`
+	BackupWarning       *string                  `yaml:"backup_warning"`
+	BackupHigh          *string                  `yaml:"backup_high"`
+	ThreadPoolQueueHigh *int                     `yaml:"thread_pool_queue_high"`
+}
+
+type percentThresholdPatch struct {
+	Warning  *float64 `yaml:"warning"`
+	High     *float64 `yaml:"high"`
+	Critical *float64 `yaml:"critical"`
+}
+
+type ratioThresholdPatch struct {
+	Warning *float64 `yaml:"warning"`
+	High    *float64 `yaml:"high"`
+}
+
+type shardSizeThresholdPatch struct {
+	Small        *string `yaml:"small"`
+	LargeWarning *string `yaml:"large_warning"`
+	LargeHigh    *string `yaml:"large_high"`
+}
+
+type variationThresholdPatch struct {
+	Warning *float64 `yaml:"warning"`
+	High    *float64 `yaml:"high"`
+}
+
+type daysThresholdPatch struct {
+	Warning  *int `yaml:"warning"`
+	High     *int `yaml:"high"`
+	Critical *int `yaml:"critical"`
 }
 
 type outputPatch struct {
@@ -180,6 +238,11 @@ func applyFilePatch(cfg *Config, patch filePatch) error {
 	if patch.Fingerprint != nil && patch.Fingerprint.Threshold != nil {
 		cfg.Fingerprint.Threshold = *patch.Fingerprint.Threshold
 	}
+	if patch.Health != nil {
+		if err := applyHealthPatch(&cfg.Health, patch.Health); err != nil {
+			return err
+		}
+	}
 	if patch.Output != nil && patch.Output.Format != nil {
 		cfg.Output.Format = parseOutputFormat(*patch.Output.Format)
 	}
@@ -187,6 +250,128 @@ func applyFilePatch(cfg *Config, patch filePatch) error {
 		cfg.Logging.Level = parseLogLevel(*patch.Logging.Level)
 	}
 	return nil
+}
+
+func applyHealthPatch(health *HealthConfig, patch *healthPatch) error {
+	if patch.Profile != nil {
+		health.Profile = parseHealthProfile(*patch.Profile)
+	}
+	if patch.Concurrency != nil {
+		health.Concurrency = *patch.Concurrency
+	}
+	if patch.RequestsPerSecond != nil {
+		health.RequestsPerSecond = *patch.RequestsPerSecond
+	}
+	if patch.TopN != nil {
+		health.TopN = *patch.TopN
+	}
+	if patch.MaxResponseBytes != nil {
+		health.MaxResponseBytes = *patch.MaxResponseBytes
+	}
+	if patch.Thresholds == nil {
+		return nil
+	}
+	thresholds := patch.Thresholds
+	applyPercentThreshold(&health.Thresholds.JVM, thresholds.JVM)
+	applyPercentThreshold(&health.Thresholds.Memory, thresholds.Memory)
+	applyPercentThreshold(&health.Thresholds.Disk, thresholds.Disk)
+	applyPercentThreshold(&health.Thresholds.CPU, thresholds.CPU)
+	applyPercentThreshold(&health.Thresholds.FileDescriptors, thresholds.FileDescriptors)
+	if thresholds.DeletedDocuments != nil {
+		if thresholds.DeletedDocuments.Warning != nil {
+			health.Thresholds.DeletedDocuments.Warning = *thresholds.DeletedDocuments.Warning
+		}
+		if thresholds.DeletedDocuments.High != nil {
+			health.Thresholds.DeletedDocuments.High = *thresholds.DeletedDocuments.High
+		}
+	}
+	if thresholds.ShardImbalance != nil {
+		applyVariationThreshold(&health.Thresholds.ShardImbalance, thresholds.ShardImbalance)
+	}
+	if thresholds.DiskImbalance != nil {
+		applyVariationThreshold(&health.Thresholds.DiskImbalance, thresholds.DiskImbalance)
+	}
+	if thresholds.Certificate != nil {
+		if thresholds.Certificate.Warning != nil {
+			health.Thresholds.Certificate.Warning = *thresholds.Certificate.Warning
+		}
+		if thresholds.Certificate.High != nil {
+			health.Thresholds.Certificate.High = *thresholds.Certificate.High
+		}
+		if thresholds.Certificate.Critical != nil {
+			health.Thresholds.Certificate.Critical = *thresholds.Certificate.Critical
+		}
+	}
+	if thresholds.ShardSize != nil {
+		parsers := []struct {
+			name  string
+			value *string
+			set   func(int64)
+		}{
+			{"health.thresholds.shard_size.small", thresholds.ShardSize.Small, func(value int64) { health.Thresholds.ShardSize.Small = value }},
+			{"health.thresholds.shard_size.large_warning", thresholds.ShardSize.LargeWarning, func(value int64) { health.Thresholds.ShardSize.LargeWarning = value }},
+			{"health.thresholds.shard_size.large_high", thresholds.ShardSize.LargeHigh, func(value int64) { health.Thresholds.ShardSize.LargeHigh = value }},
+		}
+		for _, parser := range parsers {
+			if parser.value == nil {
+				continue
+			}
+			value, err := parseByteSize(parser.name, *parser.value)
+			if err != nil {
+				return err
+			}
+			parser.set(value)
+		}
+	}
+	durations := []struct {
+		name  string
+		value *string
+		set   func(time.Duration)
+	}{
+		{"health.thresholds.pending_task_warning", thresholds.PendingTaskWarning, func(value time.Duration) { health.Thresholds.PendingTaskWarning = value }},
+		{"health.thresholds.pending_task_high", thresholds.PendingTaskHigh, func(value time.Duration) { health.Thresholds.PendingTaskHigh = value }},
+		{"health.thresholds.long_task_warning", thresholds.LongTaskWarning, func(value time.Duration) { health.Thresholds.LongTaskWarning = value }},
+		{"health.thresholds.backup_warning", thresholds.BackupWarning, func(value time.Duration) { health.Thresholds.BackupWarning = value }},
+		{"health.thresholds.backup_high", thresholds.BackupHigh, func(value time.Duration) { health.Thresholds.BackupHigh = value }},
+	}
+	for _, parser := range durations {
+		if parser.value == nil {
+			continue
+		}
+		value, err := parseDuration(parser.name, *parser.value)
+		if err != nil {
+			return err
+		}
+		parser.set(value)
+	}
+	if thresholds.ThreadPoolQueueHigh != nil {
+		health.Thresholds.ThreadPoolQueueHigh = *thresholds.ThreadPoolQueueHigh
+	}
+	return nil
+}
+
+func applyPercentThreshold(destination *PercentThreshold, patch *percentThresholdPatch) {
+	if patch == nil {
+		return
+	}
+	if patch.Warning != nil {
+		destination.Warning = *patch.Warning
+	}
+	if patch.High != nil {
+		destination.High = *patch.High
+	}
+	if patch.Critical != nil {
+		destination.Critical = *patch.Critical
+	}
+}
+
+func applyVariationThreshold(destination *VariationThreshold, patch *variationThresholdPatch) {
+	if patch.Warning != nil {
+		destination.Warning = *patch.Warning
+	}
+	if patch.High != nil {
+		destination.High = *patch.High
+	}
 }
 
 func (loader *Loader) applyEnvironment(cfg *Config) error {
@@ -258,6 +443,42 @@ func (loader *Loader) applyEnvironment(cfg *Config) error {
 			cfg.Fingerprint.Threshold = parsed
 			return nil
 		}},
+		{"GARGA_HEALTH_PROFILE", func(value string) error {
+			cfg.Health.Profile = parseHealthProfile(value)
+			return nil
+		}},
+		{"GARGA_HEALTH_CONCURRENCY", func(value string) error {
+			parsed, err := strconv.Atoi(strings.TrimSpace(value))
+			if err != nil {
+				return invalidEnvironment("GARGA_HEALTH_CONCURRENCY", "must be an integer")
+			}
+			cfg.Health.Concurrency = parsed
+			return nil
+		}},
+		{"GARGA_HEALTH_RATE", func(value string) error {
+			parsed, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+			if err != nil {
+				return invalidEnvironment("GARGA_HEALTH_RATE", "must be a number")
+			}
+			cfg.Health.RequestsPerSecond = parsed
+			return nil
+		}},
+		{"GARGA_HEALTH_TOP_N", func(value string) error {
+			parsed, err := strconv.Atoi(strings.TrimSpace(value))
+			if err != nil {
+				return invalidEnvironment("GARGA_HEALTH_TOP_N", "must be an integer")
+			}
+			cfg.Health.TopN = parsed
+			return nil
+		}},
+		{"GARGA_HEALTH_MAX_RESPONSE_BYTES", func(value string) error {
+			parsed, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+			if err != nil {
+				return invalidEnvironment("GARGA_HEALTH_MAX_RESPONSE_BYTES", "must be an integer byte count")
+			}
+			cfg.Health.MaxResponseBytes = parsed
+			return nil
+		}},
 		{"GARGA_OUTPUT_FORMAT", func(value string) error {
 			cfg.Output.Format = parseOutputFormat(value)
 			return nil
@@ -290,6 +511,32 @@ func parseDuration(field, value string) (time.Duration, error) {
 	return duration, nil
 }
 
+func parseByteSize(field, value string) (int64, error) {
+	normalized := strings.ToUpper(strings.TrimSpace(value))
+	units := []struct {
+		suffix     string
+		multiplier float64
+	}{
+		{"TIB", 1 << 40}, {"TB", 1e12},
+		{"GIB", 1 << 30}, {"GB", 1e9},
+		{"MIB", 1 << 20}, {"MB", 1e6},
+		{"KIB", 1 << 10}, {"KB", 1e3},
+		{"B", 1},
+	}
+	for _, unit := range units {
+		if !strings.HasSuffix(normalized, unit.suffix) {
+			continue
+		}
+		number := strings.TrimSpace(strings.TrimSuffix(normalized, unit.suffix))
+		parsed, err := strconv.ParseFloat(number, 64)
+		if err != nil || math.IsNaN(parsed) || math.IsInf(parsed, 0) || parsed <= 0 || parsed > float64(math.MaxInt64)/unit.multiplier {
+			return 0, fmt.Errorf("invalid configuration: %s must be a positive byte size such as 1GB", field)
+		}
+		return int64(parsed * unit.multiplier), nil
+	}
+	return 0, fmt.Errorf("invalid configuration: %s must be a byte size such as 1GB", field)
+}
+
 func applyOverrides(cfg *Config, overrides Overrides) {
 	if overrides.Concurrency != nil {
 		cfg.Scanner.Concurrency = *overrides.Concurrency
@@ -314,6 +561,21 @@ func applyOverrides(cfg *Config, overrides Overrides) {
 	}
 	if overrides.FingerprintScore != nil {
 		cfg.Fingerprint.Threshold = *overrides.FingerprintScore
+	}
+	if overrides.HealthProfile != nil {
+		cfg.Health.Profile = parseHealthProfile(string(*overrides.HealthProfile))
+	}
+	if overrides.HealthConcurrency != nil {
+		cfg.Health.Concurrency = *overrides.HealthConcurrency
+	}
+	if overrides.HealthRate != nil {
+		cfg.Health.RequestsPerSecond = *overrides.HealthRate
+	}
+	if overrides.HealthTopN != nil {
+		cfg.Health.TopN = *overrides.HealthTopN
+	}
+	if overrides.HealthMaxResponseBytes != nil {
+		cfg.Health.MaxResponseBytes = *overrides.HealthMaxResponseBytes
 	}
 	if overrides.OutputFormat != nil {
 		cfg.Output.Format = parseOutputFormat(string(*overrides.OutputFormat))

@@ -68,6 +68,7 @@ Implemented operator commands:
 | Command | Role |
 |---|---|
 | `garga scan` | GET `/`, fingerprint, GET-only capability discovery, TLS/exposure checks, bundled CVE matching |
+| `garga health` | Advanced GET-only cluster/node/index health, capacity, performance, configuration, backup, and security assessment |
 | `garga fingerprint` | GET `/` product identity only |
 | `garga vuln` | Signature-only potential CVE matching (bundled corpus; `--signatures DIR` optional) |
 | `garga auth-check` | One credential, `GET /_security/_authenticate` |
@@ -208,6 +209,31 @@ Default exposure checks (no extra I/O beyond capability discovery):
 
 Details: [docs/scan.md](docs/scan.md), [docs/checks.md](docs/checks.md).
 
+### `garga health`
+
+Assess one Elasticsearch cluster through bounded, read-only APIs. The command collects a
+normalized cluster snapshot, executes version-aware health checkers, correlates root causes,
+calculates a weighted score, and reports skipped collectors when an API, permission, or version
+is unavailable.
+
+```sh
+garga health https://es-prod.example.com --profile production --deep --format terminal
+garga health https://es-prod.example.com --format json --fail-on high
+garga health https://es-prod.example.com --snapshot-out baseline.json
+garga health https://es-prod.example.com --baseline baseline.json
+```
+
+Normal mode avoids the higher-cost ILM, task, data-stream, node-settings, and snapshot collectors.
+`--deep` enables those checks. Credentials may be provided with `--username` and
+`--password-stdin`, `--api-key-stdin`, or `--bearer-token-stdin`. Credential transmission over
+plain HTTP is refused unless `--allow-plaintext-auth` is explicitly supplied, and that condition
+is reported as critical. Output formats are `terminal`, `json`, `html`, and `markdown`. Regardless
+of the selected stdout format, every completed assessment also writes a timestamped, standalone
+HTML report to the current directory and prints its path on stderr. The light-theme report embeds
+`garga.png` and includes executive, technical, remediation, coverage, and telemetry sections.
+
+Details: [docs/health.md](docs/health.md).
+
 ### `garga fingerprint`
 
 `GET /` only. No extra APIs, no exposure checks, no signatures, no credentials.
@@ -324,8 +350,8 @@ Precedence, lowest to highest:
 1. built-in defaults
 2. explicit YAML (`--config` or `GARGA_CONFIG`)
 3. `GARGA_*` environment variables
-4. command-line overrides (`--concurrency`, `--rate`, `--per-host-rate`, `--format`, and
-   `--threshold` on `fingerprint`)
+4. command-line overrides (`--concurrency`, `--rate`, `--per-host-rate`, `--format`,
+   `--threshold` on `fingerprint`, and health flags such as `--profile` and `--max-response-bytes`)
 
 garga does not search the working directory or home directory for an implicit config file.
 Start from [garga.example.yaml](garga.example.yaml). Files are at most 1 MiB, one YAML
@@ -341,6 +367,11 @@ document, unknown fields rejected.
 | `scanner.retries` | `GARGA_RETRIES` | `1` |
 | `scanner.max_response_bytes` | `GARGA_MAX_RESPONSE_BYTES` | `524288` |
 | `fingerprint.threshold` | `GARGA_FINGERPRINT_THRESHOLD` | `80` |
+| `health.profile` | `GARGA_HEALTH_PROFILE` | `standard` |
+| `health.concurrency` | `GARGA_HEALTH_CONCURRENCY` | `4` |
+| `health.requests_per_second` | `GARGA_HEALTH_RATE` | `5` |
+| `health.top_n` | `GARGA_HEALTH_TOP_N` | `5` |
+| `health.max_response_bytes` | `GARGA_HEALTH_MAX_RESPONSE_BYTES` | `33554432` |
 | `output.format` | `GARGA_OUTPUT_FORMAT` | `console` |
 | `logging.level` | `GARGA_LOG_LEVEL` | `warn` |
 
@@ -368,11 +399,11 @@ Credentials, tokens, and authorization material are redacted. See
 
 | Code | Meaning |
 |---:|---|
-| 0 | Success. Findings do not fail `scan` / `fingerprint` / `vuln`. |
-| 1 | Unexpected internal or output failure |
-| 2 | Invalid CLI, configuration, target input, or signature directory |
-| 3 | Run finished, but at least one probe failed operationally |
-| 4 | Signature update verification, archive, or validation failure |
+| 0 | Success. Findings do not fail `scan` / `fingerprint` / `vuln`. `garga health` also exits 0 when `--fail-on` is unset or the highest finding is below that threshold. |
+| 1 | Unexpected internal or output failure. For `garga health --fail-on`, also used when the highest finding is medium/warning. |
+| 2 | Invalid CLI, configuration, target input, or signature directory. For `garga health --fail-on`, also used when the highest finding is high. |
+| 3 | Run finished, but at least one probe failed operationally. For `garga health --fail-on`, also used when the highest finding is critical. |
+| 4 | Signature update verification, archive, or validation failure. `garga health` also uses 4 for connection, authentication, product, configuration, or collection errors, including invalid health flags. |
 | 130 | Interrupted |
 
 ## Elasticsearch support
@@ -418,6 +449,7 @@ Roadmap and acceptance criteria: [garga-MASTER-PLAN.md](garga-MASTER-PLAN.md).
 |---|---|
 | Authorized use | [docs/responsible-use.md](docs/responsible-use.md), [SECURITY.md](SECURITY.md) |
 | Scan command | [docs/scan.md](docs/scan.md) |
+| Health assessment | [docs/health.md](docs/health.md) |
 | Fingerprint | [docs/fingerprint.md](docs/fingerprint.md) |
 | Targets | [docs/target-input.md](docs/target-input.md) |
 | Configuration | [docs/configuration.md](docs/configuration.md), [garga.example.yaml](garga.example.yaml) |

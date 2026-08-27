@@ -1,4 +1,4 @@
-# Highlight exploitable findings in scan listings
+# Complete garga health and align docs
 
 ## Status
 
@@ -6,36 +6,22 @@ Complete.
 
 ## Scope
 
-When findings are listed (console, stderr notice, HTML), emphasize those that
-are remotely usable for compromise. Do not claim confirmed exploitation.
-Do not add exploit steps, PoCs, or payloads.
-
-## Classifier (conservative)
-
-Highlight as exploitable:
-
-- Anonymous access class `read`, `write`, or `admin` (including inferred).
-- Vulnerability advisories whose title/description/references indicate RCE,
-  arbitrary code execution, untrusted deserialization, authentication bypass,
-  or CISA KEV.
-
-Do not highlight:
-
-- Anonymous metadata, TLS-not-enabled, public-network, security-unconfigured.
-- Authenticated DoS / resource consumption CVEs.
-- XSS or information-disclosure-only advisories.
+Make the uncommitted `garga health` stack production-ready: fix failing tests,
+evidence-based anonymous access, collector contracts, profile semantics,
+markdown/report ops, and documentation alignment.
 
 ## Acceptance
 
-- [x] Console prefixes `EXPLOITABLE`, sorts those first within a target, and
-      summarizes `N exploitable`. Honest `note` that this is not a confirmed exploit.
-- [x] HTML emphasizes matching rows without scripts or network resources.
-- [x] Machine formats add an `exploitable` tag when classified (schema 0.1 additive).
-- [x] Golden fixtures for metadata/TLS samples stay unchanged (HTML CSS header only).
-- [x] Tests, docs, and changelog updated.
+- [x] helpers_test compiles; AnonymousAccess is evidence-based; fail-on fixture has masters
+- [x] `--allow-plaintext-auth` emits a dedicated CRITICAL finding
+- [x] Collector rejects <7.17 and OpenSearch; snapshot history capped at 20/repo; cancel coverage recorded
+- [x] All eight profiles have distinct checker behavior
+- [x] Markdown reports include correlations, actions, collector coverage
+- [x] `GARGA_HEALTH_MAX_RESPONSE_BYTES` and `--max-response-bytes`; Makefile formats `brand.go`
+- [x] Tests for collector/normalize/correlation/redact/engine/CLI contracts
+- [x] Docs, CHANGELOG, example YAML, master plan WP 13.1, ADR 0002 aligned
 
 ## Review
 
-Classifier lives in `internal/report` so `garga report` of older JSONL still
-highlights. Version-only CVE hits stay `potential`; the badge is listing
-emphasis, not a confidence upgrade.
+Anonymous access is now based on authenticate evidence rather than "no credential was sent".
+`Write` clones report slices before redaction so concurrent format writers cannot race.

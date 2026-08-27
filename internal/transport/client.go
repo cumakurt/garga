@@ -18,6 +18,7 @@ type Response struct {
 	Protocol   string
 	Header     http.Header
 	Body       []byte
+	TLS        *TLSInfo
 }
 
 // Client applies one immutable transport policy across many requests.
@@ -156,6 +157,7 @@ func (client *Client) Do(request *http.Request) (Response, error) {
 		Protocol:   httpResponse.Proto,
 		Header:     httpResponse.Header.Clone(),
 		Body:       body,
+		TLS:        connectionTLSInfo(httpResponse.TLS, clonedRequest.URL.Hostname()),
 	}, nil
 }
 
