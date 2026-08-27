@@ -684,7 +684,7 @@ boundaries and acceptance tests are already stable.
 
 **Deliverables**
 
-- Public `garga vuln` command with required `--signatures`.
+- Public `garga vuln` command with bundled signatures (optional `--signatures` override).
 - Signature-only findings through capability-aware evaluation. No TLS/exposure checks.
 - GET-only product requests; potential-only detection.
 

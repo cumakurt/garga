@@ -14,7 +14,9 @@ schema `1.0` before the first public tag would freeze a pre-release field set.
 - Reporters live in `internal/report` and consume `model.Finding` only. They must not import the
   scanner, CLI, or Cobra.
 - `Writer` is a streaming interface: `Write` emits one finding; `Close` completes the document.
-  JSONL and the JSON document writer do not retain a finding slice.
+  JSONL and the JSON document writer do not retain a finding slice. Console may buffer until
+  `Close` so human output can be grouped by target, with exploitable findings listed first,
+  then severity, and ANSI color on a TTY.
 - Supported formats are `console`, `json`, `jsonl`, `csv`, and `html`.
 - Machine formats carry `schema_version` `0.1`. Console output is not a machine schema.
 - HTML uses `html.EscapeString` for all finding text, inline CSS only, and no external resources.

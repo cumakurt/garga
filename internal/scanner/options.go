@@ -29,6 +29,7 @@ type Options struct {
 	RetryBaseBackoff time.Duration
 	RetryMaxBackoff  time.Duration
 	Logger           *slog.Logger
+	Progress         func(Stats)
 }
 
 // OptionsFromConfig derives scanner limits from validated application configuration.

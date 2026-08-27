@@ -22,6 +22,8 @@ h1 { font-size: 1.25rem; }
 table { border-collapse: collapse; width: 100%; }
 th, td { border: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
 th { background: #f4f4f4; }
+tr.exploitable { background: #fff1f0; }
+tr.exploitable td:nth-child(5) { font-weight: 700; }
 </style>
 </head>
 <body>
@@ -59,11 +61,17 @@ func (writer *htmlWriter) Write(ctx context.Context, finding model.Finding) erro
 	}
 	finding = prepared(finding)
 	codes := evidenceCodes(finding)
-	row := "<tr><td>" + html.EscapeString(string(finding.Severity)) +
+	title := finding.Title
+	rowClass := ""
+	if exploitable(finding) {
+		rowClass = ` class="exploitable"`
+		title = "EXPLOITABLE — " + title
+	}
+	row := "<tr" + rowClass + "><td>" + html.EscapeString(string(finding.Severity)) +
 		"</td><td>" + html.EscapeString(string(finding.Confidence)) +
 		"</td><td>" + html.EscapeString(finding.CheckID) +
 		"</td><td>" + html.EscapeString(targetDisplay(finding.Target)) +
-		"</td><td>" + html.EscapeString(finding.Title) +
+		"</td><td>" + html.EscapeString(title) +
 		"</td><td>" + html.EscapeString(strings.Join(codes, ", ")) +
 		"</td></tr>\n"
 	_, err := io.WriteString(writer.output, row)

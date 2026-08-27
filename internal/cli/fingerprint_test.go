@@ -33,7 +33,7 @@ func TestFingerprintHelpDocumentsReadOnlyIdentity(t *testing.T) {
 		t.Fatalf("exit code = %d; stderr = %q", exitCode, stderr.String())
 	}
 	help := stdout.String()
-	for _, needle := range []string{"--file", "--format", "--insecure", "--threshold", "GET /", "does not discover extra APIs"} {
+	for _, needle := range []string{"--file", "--format", "--insecure", "--threshold", "--no-progress", "GET /", "does not discover extra APIs"} {
 		if !strings.Contains(help, needle) {
 			t.Errorf("help missing %q: %s", needle, help)
 		}

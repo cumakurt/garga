@@ -24,6 +24,6 @@ but cannot confirm that a vulnerability is reachable.
 ## Consequences
 
 Capability-aware matching and finding conversion are implemented in ADR 0012. Signature updates
-use the Ed25519 trust root in ADR 0014. `make signatures-validate` loads committed fixtures with
+use the Ed25519 trust root in ADR 0014. `make signatures-validate` loads the bundled corpus with
 the same `LoadDir` used at scan time. Mapping version-only evidence to a confirmed finding
 remains a contract break.

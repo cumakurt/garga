@@ -83,6 +83,9 @@ func runReport(cmd *cobra.Command, options reportOptions) (err error) {
 	if err != nil {
 		return &executionError{exitCode: ExitInternalError, message: "create report writer", cause: err}
 	}
+	if format != report.FormatConsole {
+		writer = report.WithNotice(writer, cmd.ErrOrStderr())
+	}
 	defer func() {
 		if closeErr := writer.Close(); closeErr != nil && err == nil {
 			err = &executionError{exitCode: ExitInternalError, message: "write report", cause: closeErr}

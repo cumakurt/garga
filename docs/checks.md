@@ -43,7 +43,9 @@ realms, cluster names, node names, UUIDs, and arbitrary headers are never copied
 is omitted until a scan runner records observation time.
 
 Severity and confidence are independent. Default exposure checks do not emit CVE or CVSS values.
-Signature findings copy those fields from YAML and remain unconfirmed.
+Signature findings copy those fields from YAML and remain unconfirmed. Console and HTML listings
+may mark a subset as `exploitable` (unauthenticated read/write/admin, or a remote-compromise
+advisory class). That mark does not raise confidence or confirm exploitation.
 
 ## Active-safe contract
 

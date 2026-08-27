@@ -28,9 +28,13 @@ type Options struct {
 	Format           report.Format
 	Insecure         bool
 	SignatureDir     string
+	SkipSignatures   bool
 	Logger           *slog.Logger
 	UserAgent        string
 	MaxUniqueTargets int
+	Notice           io.Writer
+	Progress         io.Writer
+	NoProgress       bool
 }
 
 // Result is the operational outcome of one probe run. Findings and identities
@@ -44,7 +48,7 @@ type Result struct {
 // Scan probes targets, fingerprints Elasticsearch, discovers read-only capabilities,
 // evaluates checks, and streams findings. It does not verify credentials.
 func Scan(ctx context.Context, options Options) (Result, error) {
-	registry, err := loadRegistry(options.SignatureDir)
+	registry, err := loadRegistry(options)
 	if err != nil {
 		if options.Source != nil {
 			_ = options.Source.Close()
@@ -57,19 +61,18 @@ func Scan(ctx context.Context, options Options) (Result, error) {
 // Vuln probes targets, fingerprints Elasticsearch, discovers read-only capabilities,
 // and streams signature findings only. It does not emit TLS or exposure checks.
 func Vuln(ctx context.Context, options Options) (Result, error) {
-	directory := strings.TrimSpace(options.SignatureDir)
-	if directory == "" {
+	if options.SkipSignatures {
 		if options.Source != nil {
 			_ = options.Source.Close()
 		}
-		return Result{}, invalidError("vuln requires a signature directory", nil)
+		return Result{}, invalidError("vuln requires vulnerability signatures", nil)
 	}
-	signatures, err := vulnerability.LoadDir(directory)
+	signatures, err := loadSignatures(options.SignatureDir)
 	if err != nil {
 		if options.Source != nil {
 			_ = options.Source.Close()
 		}
-		return Result{}, invalidError("invalid signature directory", err)
+		return Result{}, err
 	}
 	registry, err := checks.SignatureRegistry(signatures)
 	if err != nil {
@@ -107,6 +110,7 @@ func assess(ctx context.Context, options Options, registry *checks.Registry, emp
 		return Result{}, err
 	}
 	defer session.closeIdle()
+	defer session.closeProgress()
 
 	followUpLimiter, err := ratelimit.New(options.Config.Scanner.RequestsPerSecond, options.Config.Scanner.PerHostRate)
 	if err != nil {
@@ -124,7 +128,11 @@ func assess(ctx context.Context, options Options, registry *checks.Registry, emp
 		_ = session.source.Close()
 		return Result{}, internalError("create report writer", err)
 	}
+	if options.Notice != nil && format != report.FormatConsole {
+		writer = report.WithNotice(writer, options.Notice)
+	}
 	defer func() {
+		session.closeProgress()
 		if closeErr := writer.Close(); closeErr != nil && err == nil {
 			err = internalError("write report", closeErr)
 		}
@@ -148,20 +156,35 @@ func assess(ctx context.Context, options Options, registry *checks.Registry, emp
 	return result, nil
 }
 
-func loadRegistry(signatureDir string) (*checks.Registry, error) {
-	directory := strings.TrimSpace(signatureDir)
-	if directory == "" {
+func loadRegistry(options Options) (*checks.Registry, error) {
+	if options.SkipSignatures {
 		return checks.DefaultRegistry(), nil
 	}
-	signatures, err := vulnerability.LoadDir(directory)
+	signatures, err := loadSignatures(options.SignatureDir)
 	if err != nil {
-		return nil, invalidError("invalid signature directory", err)
+		return nil, err
 	}
 	registry, err := checks.WithSignatures(signatures)
 	if err != nil {
 		return nil, invalidError("invalid signature directory", err)
 	}
 	return registry, nil
+}
+
+func loadSignatures(signatureDir string) ([]vulnerability.Signature, error) {
+	directory := strings.TrimSpace(signatureDir)
+	if directory == "" {
+		signatures, err := vulnerability.LoadBundled()
+		if err != nil {
+			return nil, internalError("load bundled signatures", err)
+		}
+		return signatures, nil
+	}
+	signatures, err := vulnerability.LoadDir(directory)
+	if err != nil {
+		return nil, invalidError("invalid signature directory", err)
+	}
+	return signatures, nil
 }
 
 func classifyRunError(err error) error {

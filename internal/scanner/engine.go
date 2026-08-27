@@ -101,6 +101,9 @@ func (engine *Engine) Run(parent context.Context, source Source, sink Sink) (Sta
 
 	go engine.produce(ctx, cancel, source, jobs, window, counters, producerError)
 
+	stopProgress := engine.watchProgress(counters, engine.options.QueueCapacity, outstandingWindow)
+	defer stopProgress()
+
 	var workers sync.WaitGroup
 	workers.Add(engine.options.Workers)
 	for range engine.options.Workers {
@@ -339,6 +342,37 @@ func (engine *Engine) logger() *slog.Logger {
 		return engine.options.Logger
 	}
 	return slog.New(slog.DiscardHandler)
+}
+
+func (engine *Engine) watchProgress(counters *runCounters, queueCapacity, outstandingWindow int) func() {
+	if engine.options.Progress == nil {
+		return func() {}
+	}
+	stop := make(chan struct{})
+	var done sync.WaitGroup
+	done.Add(1)
+	report := func() {
+		engine.options.Progress(counters.snapshot(queueCapacity, outstandingWindow))
+	}
+	go func() {
+		defer done.Done()
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		report()
+		for {
+			select {
+			case <-stop:
+				report()
+				return
+			case <-ticker.C:
+				report()
+			}
+		}
+	}()
+	return func() {
+		close(stop)
+		done.Wait()
+	}
 }
 
 var probeErrorKinds = []string{

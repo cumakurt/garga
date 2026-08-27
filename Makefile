@@ -82,8 +82,8 @@ fuzz-smoke:
 	$(GO) test -fuzz=FuzzParseRange -fuzztime=$(FUZZ_TIME) ./internal/vulnerability
 	$(GO) test -fuzz=FuzzParseSignature -fuzztime=$(FUZZ_TIME) ./internal/vulnerability
 
-# Loads committed YAML fixtures through the same validator as garga scan/vuln --signatures.
-SIGNATURES_DIR ?= internal/vulnerability/testdata/valid
+# Loads the bundled Elasticsearch CVE corpus through the same validator as garga scan/vuln.
+SIGNATURES_DIR ?= internal/vulnerability/bundled
 signatures-validate:
 	$(GO) run ./scripts/validate-signatures $(SIGNATURES_DIR)
 

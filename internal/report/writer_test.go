@@ -194,7 +194,34 @@ func TestHTMLEscapesContentAndHasNoNetworkDependency(t *testing.T) {
 	}
 }
 
-func TestCSVNeutralizesFormulaInjection(t *testing.T) {
+func TestWithNoticeCopiesFindingsToConsole(t *testing.T) {
+	t.Parallel()
+
+	var primary bytes.Buffer
+	var notice bytes.Buffer
+	csvWriter, err := New(FormatCSV, &primary)
+	if err != nil {
+		t.Fatalf("New(csv) error = %v", err)
+	}
+	writer := WithNotice(csvWriter, &notice)
+	finding := sampleFindings()[0]
+	finding.Description = "Reached over HTTP."
+	finding.CVE = []string{"CVE-2023-31418"}
+	if err := writer.Write(context.Background(), finding); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	if !strings.Contains(primary.String(), "CVE-2023-31418") || !strings.Contains(primary.String(), "Reached over HTTP.") {
+		t.Fatalf("csv missing detection fields: %q", primary.String())
+	}
+	if !strings.Contains(notice.String(), "CVE-2023-31418") || !strings.Contains(notice.String(), "Reached over HTTP.") {
+		t.Fatalf("notice missing detection fields: %q", notice.String())
+	}
+}
+
+func TestCSVNeutralizesFormulas(t *testing.T) {
 	t.Parallel()
 
 	output := string(renderFormat(t, FormatCSV, sampleFindings()))
@@ -310,12 +337,102 @@ func TestWriteHonorsCancellation(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	writer, err := New(FormatJSONL, io.Discard)
+	for _, format := range []Format{FormatJSONL, FormatConsole} {
+		writer, err := New(format, io.Discard)
+		if err != nil {
+			t.Fatalf("New(%s) error = %v", format, err)
+		}
+		if writeErr := writer.Write(ctx, sampleFindings()[0]); writeErr == nil {
+			t.Fatalf("Write(%s) error = nil, want canceled context", format)
+		}
+	}
+}
+
+func TestConsoleWriteAfterClose(t *testing.T) {
+	t.Parallel()
+
+	writer, err := New(FormatConsole, io.Discard)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	if writeErr := writer.Write(ctx, sampleFindings()[0]); writeErr == nil {
-		t.Fatal("Write() error = nil, want canceled context")
+	if err := writer.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	if writeErr := writer.Write(context.Background(), sampleFindings()[0]); writeErr == nil {
+		t.Fatal("Write() after Close() error = nil, want error")
+	}
+}
+
+func TestConsoleEmptyReport(t *testing.T) {
+	t.Parallel()
+
+	output := string(renderFormat(t, FormatConsole, nil))
+	if output != "No findings.\n" {
+		t.Fatalf("empty console = %q", output)
+	}
+}
+
+func TestConsoleGroupsByTargetAndSeverity(t *testing.T) {
+	t.Parallel()
+
+	findings := []model.Finding{
+		{
+			CheckID:    "garga.tls.not_enabled",
+			Title:      "TLS missing on second host",
+			Target:     model.Endpoint{Scheme: model.SchemeHTTP, Host: "192.0.2.20", Port: 9200},
+			Severity:   model.SeverityMedium,
+			Confidence: model.ConfidenceHigh,
+		},
+		{
+			CheckID:     "garga.exposure.anonymous_access",
+			Title:       "Anonymous access on first host",
+			Target:      model.Endpoint{Scheme: model.SchemeHTTP, Host: "192.0.2.10", Port: 9200},
+			Severity:    model.SeverityCritical,
+			Confidence:  model.ConfidenceMedium,
+			Evidence:    []model.Evidence{{Code: "class_admin_inferred"}},
+			Description: "Cluster APIs responded without credentials.",
+			Remediation: "Enable Elasticsearch security.",
+		},
+		{
+			CheckID:    "garga.tls.not_enabled",
+			Title:      "TLS missing on first host",
+			Target:     model.Endpoint{Scheme: model.SchemeHTTP, Host: "192.0.2.10", Port: 9200},
+			Severity:   model.SeverityHigh,
+			Confidence: model.ConfidenceHigh,
+		},
+	}
+	output := string(renderFormat(t, FormatConsole, findings))
+	if strings.Contains(output, "\033[") {
+		t.Fatalf("buffer output contained ANSI: %q", output)
+	}
+	firstHost := strings.Index(output, "http://192.0.2.10:9200/")
+	secondHost := strings.Index(output, "http://192.0.2.20:9200/")
+	if firstHost < 0 || secondHost < 0 || firstHost > secondHost {
+		t.Fatalf("targets are not grouped in order:\n%s", output)
+	}
+	critical := strings.Index(output, "CRITICAL")
+	high := strings.Index(output, "HIGH")
+	if critical < 0 || high < 0 || critical > high {
+		t.Fatalf("severity order is wrong:\n%s", output)
+	}
+	if !strings.Contains(output, "1 exploitable") || !strings.Contains(output, "1 critical") || !strings.Contains(output, "1 high") || !strings.Contains(output, "1 medium") {
+		t.Fatalf("summary missing counts:\n%s", output)
+	}
+	if !strings.Contains(output, "EXPLOITABLE") || !strings.Contains(output, noteExposureExploitable) {
+		t.Fatalf("missing exploitable highlight:\n%s", output)
+	}
+	if !strings.Contains(output, "fix") || !strings.Contains(output, "Enable Elasticsearch security.") {
+		t.Fatalf("missing remediation:\n%s", output)
+	}
+}
+
+func TestColorEnabledHonorsNoColor(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	if ColorEnabled(os.Stdout) {
+		t.Fatal("NO_COLOR should disable color")
+	}
+	if ColorEnabled(&bytes.Buffer{}) {
+		t.Fatal("non-file output should not enable color")
 	}
 }
 

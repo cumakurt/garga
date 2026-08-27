@@ -1,5 +1,9 @@
 # garga
 
+<p align="center">
+  <img src="garga.png" alt="garga — Elasticsearch security assessment CLI" width="720">
+</p>
+
 garga is a safe-by-default command-line tool for **authorized Elasticsearch security
 assessments**. It discovers reachable services, identifies Elasticsearch from multiple
 independent signals, evaluates exposure without changing cluster state, optionally matches
@@ -63,9 +67,9 @@ Implemented operator commands:
 
 | Command | Role |
 |---|---|
-| `garga scan` | GET `/`, fingerprint, GET-only capability discovery, TLS/exposure checks, optional signatures |
+| `garga scan` | GET `/`, fingerprint, GET-only capability discovery, TLS/exposure checks, bundled CVE matching |
 | `garga fingerprint` | GET `/` product identity only |
-| `garga vuln` | Signature-only potential CVE matching (`--signatures` required) |
+| `garga vuln` | Signature-only potential CVE matching (bundled corpus; `--signatures DIR` optional) |
 | `garga auth-check` | One credential, `GET /_security/_authenticate` |
 | `garga auth-audit` | Explicit bounded credential audit |
 | `garga report` | Offline JSONL → console/JSON/JSONL/CSV/HTML |
@@ -167,21 +171,29 @@ Logs go to **stderr**. Findings and command results go to **stdout**.
 ### `garga scan`
 
 Default assessment: probe targets, fingerprint Elasticsearch, discover GET-only capabilities,
-and emit exposure findings. Optional `--signatures DIR` adds potential vulnerability matches.
+and emit exposure findings plus potential CVE matches from the bundled Elasticsearch corpus.
+`--signatures DIR` replaces that corpus. `--no-signatures` keeps TLS/exposure checks only.
 Scan does not fetch signature bundles and does not send credentials.
 
 ```sh
 garga scan 192.0.2.10
 garga scan https://es.example.internal:9200 --format jsonl
-garga scan --file targets.txt --signatures /var/lib/garga/current
+garga scan --file targets.txt --format csv
 garga scan --file - < targets.txt
 ```
 
 Useful flags: `--file`, `--format` (`console`, `json`, `jsonl`, `csv`, `html`), `--config`,
-`--signatures`, `--insecure`, `--concurrency`, `--rate`, `--per-host-rate`, `--max-targets`.
+`--signatures`, `--no-signatures`, `--no-progress`, `--insecure`, `--concurrency`, `--rate`,
+`--per-host-rate`, `--max-targets`.
+
+On a terminal, large or slow scans draw a live progress bar on stderr (counters only; no hosts).
+`--no-progress` disables it. Findings stay on stdout.
+
+CSV, JSON, JSONL, and HTML write machine output to stdout and a human detection summary to
+stderr. Console already prints that summary on stdout.
 
 Pipeline: canonicalize targets → bounded `GET /` → local fingerprint → capability GETs on
-likely/confirmed endpoints → check registry (and optional signatures) → streaming report.
+likely/confirmed endpoints → check registry and bundled CVE matching → streaming report.
 Credential verification is not on this path. Findings do not fail the run: exit `0` means the
 scan finished; exit `3` means at least one probe failed operationally.
 
@@ -216,12 +228,14 @@ Details: [docs/fingerprint.md](docs/fingerprint.md).
 
 ### `garga vuln`
 
-Signature-only matching. `--signatures` is **required**. TLS and exposure checks are omitted;
-use `garga scan` for those. Hits stay **potential** (version evidence, not confirmed CVEs).
+Signature-only matching against the bundled Elasticsearch CVE corpus. `--signatures DIR`
+replaces the corpus. TLS and exposure checks are omitted; use `garga scan` for those. Hits stay
+**potential** (version evidence, not confirmed CVEs).
 
 ```sh
+garga vuln 192.0.2.10
+garga vuln --file targets.txt --format csv
 garga vuln --signatures /var/lib/garga/current 192.0.2.10
-garga vuln --file targets.txt --signatures ./signatures --format jsonl
 ```
 
 Target and pacing flags match `garga scan`. Details: [docs/signatures.md](docs/signatures.md).
@@ -328,7 +342,7 @@ document, unknown fields rejected.
 | `scanner.max_response_bytes` | `GARGA_MAX_RESPONSE_BYTES` | `524288` |
 | `fingerprint.threshold` | `GARGA_FINGERPRINT_THRESHOLD` | `80` |
 | `output.format` | `GARGA_OUTPUT_FORMAT` | `console` |
-| `logging.level` | `GARGA_LOG_LEVEL` | `info` |
+| `logging.level` | `GARGA_LOG_LEVEL` | `warn` |
 
 Credential audit does not use scanner rate settings. Full limits and validation:
 [docs/configuration.md](docs/configuration.md).
@@ -339,13 +353,14 @@ Machine formats use finding schema `0.1` (pre-release; not the public `1.0` cont
 
 | Format | Use |
 |---|---|
-| `console` | Human-oriented text (not a machine schema) |
+| `console` | Grouped by target; exploitable findings first, then severity; color on a TTY (`NO_COLOR` disables) |
 | `jsonl` | One finding object per line; streaming |
 | `json` | `{"schema_version":"0.1","findings":[...]}` |
 | `csv` | Header plus one row per finding |
-| `html` | Standalone, escaped, no scripts or network resources |
+| `html` | Standalone, escaped, no scripts or network resources; exploitable rows highlighted |
 
-Logs are JSON on stderr. Default `info` emits scanner start/finish, not per-probe lines.
+Logs are JSON on stderr. Default `warn` does not emit scanner start/finish or per-probe lines.
+Set `GARGA_LOG_LEVEL=info` for the bounded scan summary, or `debug` for per-probe records.
 Credentials, tokens, and authorization material are redacted. See
 [docs/observability.md](docs/observability.md).
 

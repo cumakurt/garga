@@ -54,22 +54,40 @@ func TestVulnEmitsSignatureFindingsWithoutExposureChecks(t *testing.T) {
 	assertGetOnlyAllowlisted(t, recorder.snapshot())
 }
 
-func TestVulnRequiresSignatureDirectory(t *testing.T) {
-	t.Parallel()
+func TestVulnUsesBundledCorpusWhenSignatureDirOmitted(t *testing.T) {
+	clearProxyEnv(t)
 
-	source, err := target.NewReaderSource(strings.NewReader("http://127.0.0.1:9200\n"), "cli")
+	recorder := newMethodRecorder()
+	server := httptest.NewServer(recorder.handler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		writer.Header().Set("X-Elastic-Product", "Elasticsearch")
+		writer.WriteHeader(http.StatusOK)
+		body := strings.Replace(elasticsearchRootBody, "8.19.19", "8.8.0", 1)
+		if request.URL.Path == "/" || request.URL.Path == "" {
+			_, _ = io.WriteString(writer, body)
+			return
+		}
+		_, _ = io.WriteString(writer, `{"status":"green"}`)
+	})))
+	t.Cleanup(server.Close)
+
+	var stdout bytes.Buffer
+	options := testScanOptions(t, server.URL, &stdout)
+	result, err := Vuln(context.Background(), options)
 	if err != nil {
-		t.Fatalf("NewReaderSource() error = %v", err)
+		t.Fatalf("Vuln() error = %v", err)
 	}
-	_, err = Vuln(context.Background(), Options{
-		Config: testConfig(),
-		Source: source,
-		Output: io.Discard,
-		Format: report.FormatJSONL,
-	})
-	if !errors.Is(err, ErrInvalidInput) {
-		t.Fatalf("Vuln() error = %v, want ErrInvalidInput", err)
+	if result.Findings == 0 {
+		t.Fatal("expected bundled signature findings")
 	}
+	ids := findingCheckIDs(t, stdout.Bytes())
+	if !ids["garga.vuln.cve-2023-31418"] {
+		t.Fatalf("missing bundled CVE finding: %v", ids)
+	}
+	if ids[checks.CheckTLSNotEnabled] || ids[checks.CheckExposureAnonymousAccess] {
+		t.Fatalf("exposure checks leaked: %v", ids)
+	}
+	assertGetOnlyAllowlisted(t, recorder.snapshot())
 }
 
 func TestVulnRejectsEmptySignatureDirectory(t *testing.T) {

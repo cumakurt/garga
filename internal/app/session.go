@@ -3,6 +3,7 @@ package app
 import (
 	"github.com/cumakurt/garga/internal/fingerprint"
 	"github.com/cumakurt/garga/internal/probe"
+	"github.com/cumakurt/garga/internal/progress"
 	"github.com/cumakurt/garga/internal/scanner"
 	"github.com/cumakurt/garga/internal/target"
 	"github.com/cumakurt/garga/internal/transport"
@@ -14,6 +15,7 @@ type probeSession struct {
 	engine      *scanner.Engine
 	fingerprint *fingerprint.Engine
 	source      scanner.Source
+	progress    *progress.Bar
 }
 
 func openProbeSession(options Options) (*probeSession, error) {
@@ -48,6 +50,17 @@ func openProbeSession(options Options) (*probeSession, error) {
 		return nil, invalidError("invalid configuration", err)
 	}
 	scannerOptions.Logger = options.Logger
+	bar := progressBar(options)
+	if bar != nil {
+		scannerOptions.Progress = func(stats scanner.Stats) {
+			bar.Record(progress.Snapshot{
+				Submitted: stats.Submitted,
+				Completed: stats.Completed,
+				Succeeded: stats.Succeeded,
+				Failed:    stats.Failed,
+			})
+		}
+	}
 
 	transportOptions, err := transport.OptionsFromConfig(options.Config, options.UserAgent)
 	if err != nil {
@@ -81,7 +94,26 @@ func openProbeSession(options Options) (*probeSession, error) {
 		engine:      engine,
 		fingerprint: identityEngine,
 		source:      &endpointSource{inner: deduped},
+		progress:    bar,
 	}, nil
+}
+
+func progressBar(options Options) *progress.Bar {
+	if options.NoProgress {
+		return nil
+	}
+	bar := progress.Open(options.Progress, progress.Options{})
+	if !bar.Enabled() {
+		return nil
+	}
+	return bar
+}
+
+func (session *probeSession) closeProgress() {
+	if session == nil || session.progress == nil {
+		return
+	}
+	_ = session.progress.Close()
 }
 
 func (session *probeSession) closeIdle() {

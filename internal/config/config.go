@@ -38,6 +38,8 @@ const (
 	LogDebug LogLevel = "debug"
 )
 
+const DefaultLogLevel = LogWarn
+
 // Config contains non-secret operational settings. Authentication material is
 // intentionally modeled outside this type so generic formatting cannot expose it.
 type Config struct {
@@ -98,7 +100,7 @@ func Defaults() Config {
 		},
 		Fingerprint: FingerprintConfig{Threshold: DefaultFingerprintScore},
 		Output:      OutputConfig{Format: OutputConsole},
-		Logging:     LoggingConfig{Level: LogInfo},
+		Logging:     LoggingConfig{Level: DefaultLogLevel},
 	}
 }
 

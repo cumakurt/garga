@@ -1,6 +1,17 @@
-garga.tls.not_enabled  severity=medium confidence=high  http://192.168.1.10:9200/
-Elasticsearch is reachable over HTTP
-  evidence: scheme-http
-garga.exposure.anonymous_access  severity=high confidence=medium  http://192.168.1.10:9200/
-</td><script>alert(1)</script>
-  evidence: anonymous-metadata
+http://192.168.1.10:9200/
+────────────────────────────────────────
+
+HIGH      </td><script>alert(1)</script>
+          check       garga.exposure.anonymous_access
+          confidence  medium
+          evidence    anonymous-metadata
+          fix         =cmd|'/c calc'!A0
+
+MEDIUM    Elasticsearch is reachable over HTTP
+          check       garga.tls.not_enabled
+          confidence  high
+          evidence    scheme-http
+          fix         Serve Elasticsearch only over HTTPS.
+
+────────────────────────────────────────
+2 findings    1 high    1 medium

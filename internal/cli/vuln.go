@@ -21,6 +21,7 @@ func newVulnCommand(buildInfo BuildInfo) *cobra.Command {
 		rate         float64
 		perHostRate  float64
 		maxTargets   int
+		noProgress   bool
 	)
 
 	cmd := &cobra.Command{
@@ -28,14 +29,16 @@ func newVulnCommand(buildInfo BuildInfo) *cobra.Command {
 		Short: "Match Elasticsearch versions against YAML signatures",
 		Long: strings.TrimSpace(`
 Probe authorized targets, fingerprint Elasticsearch, discover GET-only
-capabilities, and emit potential vulnerability findings from a YAML
-signature directory. TLS and exposure checks are not included; use
-garga scan for those.
+capabilities, and emit potential vulnerability findings from the bundled
+Elasticsearch CVE corpus (or --signatures DIR). TLS and exposure checks
+are not included; use garga scan for those.
 
---signatures is required. Findings stay potential: this command does not
-exploit, write, or confirm a CVE. Every product request is GET. Findings
-do not fail the run: exit 0 means the probes finished, exit 3 means some
-probes failed operationally.
+Findings stay potential: this command does not exploit, write, or confirm
+a CVE. Every product request is GET. Findings do not fail the run: exit 0
+means the probes finished, exit 3 means some probes failed operationally.
+
+On a terminal, long or large scans draw a live progress bar on stderr.
+Use --no-progress to disable it.
 
 Supply targets as arguments, a --file of line-oriented hosts/CIDRs/URLs,
 or both. --file - reads targets from stdin. --insecure skips TLS
@@ -69,18 +72,20 @@ certificate verification only.
 				overrides:    overrides,
 				maxTargets:   maxTargets,
 				maxSet:       cmd.Flags().Changed("max-targets"),
+				noProgress:   noProgress,
 			})
 		},
 	}
 	cmd.Flags().StringVar(&filePath, "file", "", "line-oriented target file, or - for stdin")
 	cmd.Flags().StringVar(&format, "format", "", "output format: console, json, jsonl, csv, or html (default console)")
 	cmd.Flags().StringVar(&configPath, "config", "", "optional configuration file")
-	cmd.Flags().StringVar(&signatureDir, "signatures", "", "directory of YAML vulnerability signatures (required)")
+	cmd.Flags().StringVar(&signatureDir, "signatures", "", "YAML signature directory (default: bundled Elasticsearch CVE corpus)")
 	cmd.Flags().BoolVar(&insecure, "insecure", false, "skip TLS certificate verification")
 	cmd.Flags().IntVar(&concurrency, "concurrency", config.DefaultConcurrency, "maximum concurrent root probes")
 	cmd.Flags().Float64Var(&rate, "rate", config.DefaultRequestsPerSecond, "global requests per second")
 	cmd.Flags().Float64Var(&perHostRate, "per-host-rate", config.DefaultPerHostRate, "per-host requests per second")
 	cmd.Flags().IntVar(&maxTargets, "max-targets", app.DefaultMaxUniqueTargets, "maximum unique targets after exact deduplication")
+	cmd.Flags().BoolVar(&noProgress, "no-progress", false, "disable the live progress bar")
 	return cmd
 }
 
@@ -94,14 +99,12 @@ type vulnOptions struct {
 	overrides    config.Overrides
 	maxTargets   int
 	maxSet       bool
+	noProgress   bool
 }
 
 func runVuln(cmd *cobra.Command, buildInfo BuildInfo, options vulnOptions) error {
 	if len(options.targets) == 0 && strings.TrimSpace(options.filePath) == "" {
 		return &executionError{exitCode: ExitInvalidInput, message: "vuln requires a target argument or --file"}
-	}
-	if strings.TrimSpace(options.signatureDir) == "" {
-		return &executionError{exitCode: ExitInvalidInput, message: "vuln requires --signatures"}
 	}
 
 	cfg, err := config.Load(config.Options{ConfigPath: options.configPath, Overrides: options.overrides})
@@ -142,6 +145,9 @@ func runVuln(cmd *cobra.Command, buildInfo BuildInfo, options vulnOptions) error
 		Logger:           logger,
 		UserAgent:        "garga/" + buildInfo.Version,
 		MaxUniqueTargets: maxUnique,
+		Notice:           cmd.ErrOrStderr(),
+		Progress:         cmd.ErrOrStderr(),
+		NoProgress:       options.noProgress,
 	})
 	if err != nil {
 		return classifyAppError(err, "vuln failed")

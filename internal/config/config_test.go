@@ -23,7 +23,7 @@ func TestDefaults(t *testing.T) {
 		},
 		Fingerprint: FingerprintConfig{Threshold: 80},
 		Output:      OutputConfig{Format: OutputConsole},
-		Logging:     LoggingConfig{Level: LogInfo},
+		Logging:     LoggingConfig{Level: LogWarn},
 	}
 
 	if got := Defaults(); !reflect.DeepEqual(got, want) {

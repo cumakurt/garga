@@ -54,11 +54,17 @@ it reuses capability discovery. Declared probes, when present, are GET paths fro
 allowlist.
 
 `checks.WithSignatures` appends this evaluator to the default registry. `SignatureRegistry`
-evaluates signatures only. `DefaultRegistry` does not load a vulnerability database.
-`garga scan --signatures DIR` loads that directory at runtime together with exposure checks.
-`garga vuln --signatures DIR` uses `SignatureRegistry`.
+evaluates signatures only.
 
-`make signatures-validate` loads the committed fixture directory through the same `LoadDir`
-validator. It does not fetch or activate a signed database.
+`garga scan` and `garga vuln` load the bundled corpus in `internal/vulnerability/bundled`
+(embedded in the binary). That corpus is Elasticsearch server advisories from NVD CPE
+(`elastic:elasticsearch` / `elasticsearch:elasticsearch`), OSV Maven
+(`org.elasticsearch:elasticsearch`), and Elastic security announcements as of 2026-08-27.
+Hits remain potential: version evidence is not confirmed exploitation. Kibana, Logstash, and
+Beats advisories are out of product scope. Override with `--signatures DIR`.
+`garga scan --no-signatures` runs exposure checks only.
+
+`make signatures-validate` loads that bundled directory through the same `LoadDir` validator.
+It does not fetch or activate a signed database.
 
 Signed database updates are documented in [signature-updates.md](signature-updates.md).

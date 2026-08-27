@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/csv"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/cumakurt/garga/internal/model"
@@ -21,6 +22,8 @@ var csvHeader = []string{
 	"target",
 	"resource",
 	"cve",
+	"cvss",
+	"description",
 	"tags",
 	"evidence",
 	"remediation",
@@ -63,6 +66,8 @@ func (writer *csvWriter) Write(ctx context.Context, finding model.Finding) error
 		safeCSV(targetDisplay(finding.Target)),
 		safeCSV(finding.Resource),
 		safeCSV(strings.Join(finding.CVE, " ")),
+		safeCSV(cvssCSV(finding.CVSS)),
+		safeCSV(finding.Description),
 		safeCSV(strings.Join(finding.Tags, " ")),
 		safeCSV(strings.Join(codes, " ")),
 		safeCSV(finding.Remediation),
@@ -86,6 +91,13 @@ func (writer *csvWriter) Close() error {
 	}
 	writer.output.Flush()
 	return writer.output.Error()
+}
+
+func cvssCSV(value *float64) string {
+	if value == nil {
+		return ""
+	}
+	return strconv.FormatFloat(*value, 'f', -1, 64)
 }
 
 func safeCSV(value string) string {

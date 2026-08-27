@@ -17,7 +17,9 @@ The command does not discover extra APIs, evaluate checks, load signatures, or s
 `--format` accepts `console`, `json`, or `jsonl`. Finding-oriented `csv` and `html` formats are
 rejected. Identities use schema `0.1` with event `fingerprint.identity`. Probe failures after a
 completed run exit `3`. `--threshold` overrides `fingerprint.threshold`. Target ingestion matches
-[scan.md](scan.md). Signature-only matching is `garga vuln`; see [signatures.md](signatures.md).
+[scan.md](scan.md). On a terminal, long runs draw the same counter-only progress bar on stderr
+as `garga scan`; `--no-progress` disables it. Signature-only matching is `garga vuln`; see
+[signatures.md](signatures.md).
 
 ## Score model
 

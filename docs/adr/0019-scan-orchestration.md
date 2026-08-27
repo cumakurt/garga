@@ -13,9 +13,10 @@ logic inside the scanner would break the product-neutral engine contract. Puttin
 
 ## Decision
 
-- `garga scan` is the public assessment command.
+- `garga scan` is the public assessment command. It loads the bundled Elasticsearch CVE corpus
+  by default.
 - `internal/app` owns one-run orchestration: target conversion, transport, scanner, fingerprint,
-  capability discovery, check evaluation, optional signature loading, and streaming reports.
+  capability discovery, check evaluation, bundled or `--signatures` loading, and streaming reports.
 - The scanner engine continues to issue only product-neutral `GET /` probes.
 - Capability follow-up requests remain the GET-only allowlist in `internal/capability`.
 - Scan does not import Cobra, `internal/credential`, `internal/credential/audit`, or

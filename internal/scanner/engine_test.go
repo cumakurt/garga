@@ -60,6 +60,33 @@ func TestEngineEmitsInputOrderWithBoundedReordering(t *testing.T) {
 	}
 }
 
+func TestEngineInvokesProgressCallback(t *testing.T) {
+	options := scannerTestOptions(t)
+	options.Retries = 0
+	var mu sync.Mutex
+	var last Stats
+	var calls int
+	options.Progress = func(stats Stats) {
+		mu.Lock()
+		calls++
+		last = stats
+		mu.Unlock()
+	}
+	engine := newScannerTestEngine(t, options, successfulProber())
+	stats, err := engine.Run(context.Background(), &generatedSource{total: 8}, &recordingSink{})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if calls == 0 {
+		t.Fatal("progress callback was not invoked")
+	}
+	if last.Submitted != 8 || last.Completed != 8 || last.Succeeded != 8 {
+		t.Fatalf("last progress = %+v, run stats = %+v", last, stats)
+	}
+}
+
 func TestEngineCancellationStopsProducerRequestsAndClosesOutput(t *testing.T) {
 	options := scannerTestOptions(t)
 	options.Workers = 4

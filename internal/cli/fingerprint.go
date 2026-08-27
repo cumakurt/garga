@@ -21,6 +21,7 @@ func newFingerprintCommand(buildInfo BuildInfo) *cobra.Command {
 		perHostRate float64
 		maxTargets  int
 		threshold   int
+		noProgress  bool
 	)
 
 	cmd := &cobra.Command{
@@ -33,6 +34,9 @@ signatures, or send credentials.
 
 Every product request is GET /. Identities do not fail the run: exit 0
 means the probes finished, exit 3 means some probes failed operationally.
+
+On a terminal, long or large scans draw a live progress bar on stderr.
+Use --no-progress to disable it.
 
 Supply targets as arguments, a --file of line-oriented hosts/CIDRs/URLs,
 or both. --file - reads targets from stdin. --format accepts console,
@@ -68,6 +72,7 @@ json, or jsonl. --insecure skips TLS certificate verification only.
 				overrides:  overrides,
 				maxTargets: maxTargets,
 				maxSet:     cmd.Flags().Changed("max-targets"),
+				noProgress: noProgress,
 			})
 		},
 	}
@@ -80,6 +85,7 @@ json, or jsonl. --insecure skips TLS certificate verification only.
 	cmd.Flags().Float64Var(&perHostRate, "per-host-rate", config.DefaultPerHostRate, "per-host requests per second")
 	cmd.Flags().IntVar(&maxTargets, "max-targets", app.DefaultMaxUniqueTargets, "maximum unique targets after exact deduplication")
 	cmd.Flags().IntVar(&threshold, "threshold", config.DefaultFingerprintScore, "minimum score to mark Elasticsearch as detected")
+	cmd.Flags().BoolVar(&noProgress, "no-progress", false, "disable the live progress bar")
 	return cmd
 }
 
@@ -92,6 +98,7 @@ type fingerprintOptions struct {
 	overrides  config.Overrides
 	maxTargets int
 	maxSet     bool
+	noProgress bool
 }
 
 func runFingerprint(cmd *cobra.Command, buildInfo BuildInfo, options fingerprintOptions) error {
@@ -136,6 +143,8 @@ func runFingerprint(cmd *cobra.Command, buildInfo BuildInfo, options fingerprint
 		Logger:           logger,
 		UserAgent:        "garga/" + buildInfo.Version,
 		MaxUniqueTargets: maxUnique,
+		Progress:         cmd.ErrOrStderr(),
+		NoProgress:       options.noProgress,
 	})
 	if err != nil {
 		return classifyAppError(err, "fingerprint failed")

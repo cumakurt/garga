@@ -18,7 +18,7 @@ The updater verifies the detached signature, checks the archive digest, extracts
 without following zip paths or symlinks, hashes every file, then runs the same `LoadDir`
 validator used at scan time. Only then does it rename `staging` into `current/`. The previous
 database is kept as `previous/` for one-generation rollback. `garga scan --signatures` and
-`garga vuln --signatures` point at that `current/` directory when CVE matching is required.
+`garga vuln --signatures` replace the bundled corpus with that `current/` directory.
 
 ## CLI
 

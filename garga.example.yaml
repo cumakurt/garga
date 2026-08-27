@@ -15,4 +15,4 @@ output:
   format: console
 
 logging:
-  level: info
+  level: warn

@@ -47,9 +47,13 @@ context so local reporters can finalize completed results. Sink implementations 
 bounded and return promptly.
 
 `Run` waits for the producer and every worker, drains the result channel, closes the sink, and
-then returns. It never starts a goroutine per target. `Succeeded` statistics mean a bounded HTTP
+then returns. It never starts a goroutine per target. When `Options.Progress` is set, one extra
+ticker samples bounded counters until `Run` returns; the callback must not block or print hosts.
+`Succeeded` statistics mean a bounded HTTP
 probe completed, regardless of its HTTP status; a result with a probe error counts as `Failed`.
 
-At `info`, the engine logs start (worker and queue limits) and finish (the counter summary).
-Per-probe lines are `debug` only and do not include hosts or URLs. The summary schema is
-documented in [observability.md](observability.md).
+The default log level is `warn`, so those records are omitted unless the operator raises
+`logging.level` or `GARGA_LOG_LEVEL` to `info` or `debug`. At `info`, the engine logs start
+(worker and queue limits) and finish (the counter summary). Per-probe lines are `debug` only and
+do not include hosts or URLs. The summary schema is documented in
+[observability.md](observability.md).

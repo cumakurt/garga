@@ -24,12 +24,19 @@ command does not contact the network. Invalid records exit `2` and are not echoe
 |---|---|
 | `jsonl` | One self-describing finding object per line. Writers do not retain the complete scan. |
 | `json` | A document `{"schema_version":"0.1","findings":[...]}`. Findings are marshaled as they arrive. |
-| `csv` | A header row plus one row per finding. Formula-like cells are prefixed with `'`. |
-| `html` | A standalone document with inline CSS. All text is HTML-escaped. There are no scripts, links, images, or other network resources. |
-| `console` | Human-oriented text. It is not a machine schema. |
+| `csv` | A header row plus one row per finding, including `cve`, `cvss`, and `description`. Formula-like cells are prefixed with `'`. Machine formats also print a grouped console summary on stderr. |
+| `html` | A standalone document with inline CSS. All text is HTML-escaped. There are no scripts, links, images, or other network resources. Exploitable rows are highlighted. |
+| `console` | Human-oriented, grouped by target. Exploitable findings are listed first, then severity. Color is used on a terminal unless `NO_COLOR` is set. It is not a machine schema. |
 
-Deterministic formats emit findings in write order. Callers that need stable grouping should
-deduplicate first. Empty schema versions are set to `0.1` on write.
+Deterministic machine formats emit findings in write order. Console buffers until `Close` and
+groups by target, then lists exploitable findings first, then severity (critical first). Empty
+schema versions are set to `0.1` on write.
+
+A finding is marked `exploitable` when evidence shows unauthenticated `read`/`write`/`admin`
+access, or when a signature looks like a remote-compromise class (RCE, untrusted
+deserialization, authentication bypass, or CISA KEV). The mark is a listing emphasis. It is
+not confirmed exploitation: garga does not send writes or exploit payloads. Anonymous metadata,
+TLS-not-enabled, public-network, and denial-of-service advisories are not marked.
 
 ## JSON fields
 
@@ -42,4 +49,8 @@ Stable finding field names:
 CSV columns:
 
 `schema_version`, `id`, `check_id`, `title`, `severity`, `confidence`, `product`, `version`,
-`target`, `resource`, `cve`, `tags`, `evidence`, `remediation`.
+`target`, `resource`, `cve`, `cvss`, `description`, `tags`, `evidence`, `remediation`.
+
+When the selected format is not `console`, `garga scan`, `garga vuln`, and `garga report` also
+print a grouped human summary of the same findings on stderr so operators can see detected
+conditions without opening the machine file.

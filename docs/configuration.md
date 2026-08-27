@@ -35,7 +35,7 @@ all built-in defaults.
 | `scanner.max_response_bytes` | `GARGA_MAX_RESPONSE_BYTES` | `524288` | `1024` through `10485760` bytes |
 | `fingerprint.threshold` | `GARGA_FINGERPRINT_THRESHOLD` | `80` | `1` through `100` |
 | `output.format` | `GARGA_OUTPUT_FORMAT` | `console` | `console`, `json`, `jsonl`, `csv`, `html` |
-| `logging.level` | `GARGA_LOG_LEVEL` | `info` | `error`, `warn`, `info`, `debug` |
+| `logging.level` | `GARGA_LOG_LEVEL` | `warn` | `error`, `warn`, `info`, `debug` |
 
 The connect timeout must not exceed the request timeout. Duration values use Go duration syntax,
 for example `500ms`, `2s`, or `1m30s`.
@@ -51,4 +51,5 @@ Configuration parse and validation errors
 identify the field or environment variable but never echo its supplied value.
 
 Logs are JSON on stderr. `logging.level` selects `error`, `warn`, `info`, or `debug`. The default
-`info` level does not emit per-request probe lines. See [observability.md](observability.md).
+`warn` level does not emit scanner start/finish or per-request probe lines. Set `info` for
+bounded scan summaries or `debug` for per-probe records. See [observability.md](observability.md).

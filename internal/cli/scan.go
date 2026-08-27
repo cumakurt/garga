@@ -19,10 +19,12 @@ func newScanCommand(buildInfo BuildInfo) *cobra.Command {
 		configPath   string
 		signatureDir string
 		insecure     bool
+		noSignatures bool
 		concurrency  int
 		rate         float64
 		perHostRate  float64
 		maxTargets   int
+		noProgress   bool
 	)
 
 	cmd := &cobra.Command{
@@ -30,14 +32,18 @@ func newScanCommand(buildInfo BuildInfo) *cobra.Command {
 		Short: "Run a read-only Elasticsearch security assessment",
 		Long: strings.TrimSpace(`
 Probe authorized targets, fingerprint Elasticsearch, discover GET-only
-capabilities, and emit exposure findings. Vulnerability signatures are
-optional and loaded from --signatures; they are never compiled into the
-scan path.
+capabilities, and emit exposure findings plus potential CVE matches from
+the bundled Elasticsearch signature corpus. Override the corpus with
+--signatures DIR, or disable CVE matching with --no-signatures.
 
 The command does not send credentials, does not spray passwords, and does
 not change cluster state. Every product request is GET. Findings do not
 fail the run: exit 0 means the scan finished, exit 3 means some probes
-failed operationally.
+failed operationally. CVE hits stay potential: version evidence is not
+confirmed exploitation.
+
+On a terminal, long or large scans draw a live progress bar on stderr.
+Use --no-progress to disable it. Findings stay on stdout.
 
 Supply targets as arguments, a --file of line-oriented hosts/CIDRs/URLs,
 or both. --file - reads targets from stdin. --insecure skips TLS
@@ -62,43 +68,52 @@ certificate verification only.
 				overrides.OutputFormat = &value
 			}
 			return runScan(cmd, buildInfo, scanOptions{
-				targets:      args,
-				filePath:     filePath,
-				format:       format,
-				configPath:   configPath,
-				signatureDir: signatureDir,
-				insecure:     insecure,
-				overrides:    overrides,
-				maxTargets:   maxTargets,
-				maxSet:       cmd.Flags().Changed("max-targets"),
+				targets:        args,
+				filePath:       filePath,
+				format:         format,
+				configPath:     configPath,
+				signatureDir:   signatureDir,
+				insecure:       insecure,
+				skipSignatures: noSignatures,
+				overrides:      overrides,
+				maxTargets:     maxTargets,
+				maxSet:         cmd.Flags().Changed("max-targets"),
+				noProgress:     noProgress,
 			})
 		},
 	}
 	cmd.Flags().StringVar(&filePath, "file", "", "line-oriented target file, or - for stdin")
 	cmd.Flags().StringVar(&format, "format", "", "output format: console, json, jsonl, csv, or html (default console)")
 	cmd.Flags().StringVar(&configPath, "config", "", "optional configuration file")
-	cmd.Flags().StringVar(&signatureDir, "signatures", "", "optional directory of YAML vulnerability signatures")
+	cmd.Flags().StringVar(&signatureDir, "signatures", "", "YAML signature directory (default: bundled Elasticsearch CVE corpus)")
+	cmd.Flags().BoolVar(&noSignatures, "no-signatures", false, "skip vulnerability signature matching")
 	cmd.Flags().BoolVar(&insecure, "insecure", false, "skip TLS certificate verification")
 	cmd.Flags().IntVar(&concurrency, "concurrency", config.DefaultConcurrency, "maximum concurrent root probes")
 	cmd.Flags().Float64Var(&rate, "rate", config.DefaultRequestsPerSecond, "global requests per second")
 	cmd.Flags().Float64Var(&perHostRate, "per-host-rate", config.DefaultPerHostRate, "per-host requests per second")
 	cmd.Flags().IntVar(&maxTargets, "max-targets", app.DefaultMaxUniqueTargets, "maximum unique targets after exact deduplication")
+	cmd.Flags().BoolVar(&noProgress, "no-progress", false, "disable the live progress bar")
 	return cmd
 }
 
 type scanOptions struct {
-	targets      []string
-	filePath     string
-	format       string
-	configPath   string
-	signatureDir string
-	insecure     bool
-	overrides    config.Overrides
-	maxTargets   int
-	maxSet       bool
+	targets        []string
+	filePath       string
+	format         string
+	configPath     string
+	signatureDir   string
+	insecure       bool
+	skipSignatures bool
+	overrides      config.Overrides
+	maxTargets     int
+	maxSet         bool
+	noProgress     bool
 }
 
 func runScan(cmd *cobra.Command, buildInfo BuildInfo, options scanOptions) error {
+	if options.skipSignatures && strings.TrimSpace(options.signatureDir) != "" {
+		return &executionError{exitCode: ExitInvalidInput, message: "--no-signatures cannot be combined with --signatures"}
+	}
 	if len(options.targets) == 0 && strings.TrimSpace(options.filePath) == "" {
 		return &executionError{exitCode: ExitInvalidInput, message: "scan requires a target argument or --file"}
 	}
@@ -138,9 +153,13 @@ func runScan(cmd *cobra.Command, buildInfo BuildInfo, options scanOptions) error
 		Format:           format,
 		Insecure:         options.insecure,
 		SignatureDir:     options.signatureDir,
+		SkipSignatures:   options.skipSignatures,
 		Logger:           logger,
 		UserAgent:        "garga/" + buildInfo.Version,
 		MaxUniqueTargets: maxUnique,
+		Notice:           cmd.ErrOrStderr(),
+		Progress:         cmd.ErrOrStderr(),
+		NoProgress:       options.noProgress,
 	})
 	if err != nil {
 		return classifyAppError(err, "scan failed")

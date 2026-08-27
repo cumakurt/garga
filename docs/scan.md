@@ -8,7 +8,7 @@ checks is `garga fingerprint`; see [fingerprint.md](fingerprint.md). Signature-o
 
 ```sh
 garga scan 192.0.2.10
-garga scan https://es.example.internal:9200 --format jsonl
+garga scan https://es.example.internal:9200 --format csv
 garga scan --file targets.txt --signatures /var/lib/garga/current
 garga scan --file - < targets.txt
 ```
@@ -24,17 +24,19 @@ targets are suppressed. The unique-target ceiling defaults to 1,000,000 and may 
 `--insecure` skips TLS certificate verification only. It does not disable rate limits, timeouts,
 retries, redaction, or the GET-only method contract.
 
-`--signatures` loads YAML files from a directory through the same validator used by
-`garga update`. Omit it to run TLS and exposure checks without CVE matching. Scan does not
-fetch or activate signature bundles.
+`--signatures` replaces the bundled corpus with YAML files from a directory. `garga scan`
+loads the bundled Elasticsearch CVE corpus by default. `--no-signatures` skips CVE matching
+and keeps TLS/exposure checks. Scan does not fetch or activate signed update bundles.
 
 ## Pipeline
 
 1. Canonicalize and stream targets through the bounded scanner engine (`GET /`).
 2. Fingerprint each successful probe without extra I/O.
 3. When the identity is likely or confirmed, discover GET-only capabilities.
-4. Evaluate the check registry (and optional signatures) into `model.Finding` values.
-5. Stream findings to the selected reporter. The complete scan is not retained.
+4. Evaluate the check registry and bundled (or `--signatures`) CVE matches into `model.Finding` values.
+5. Stream findings to the selected reporter. Console and HTML emphasize exploitable findings.
+   CSV, JSON, JSONL, and HTML also print a human detection summary on stderr. The complete
+   scan is not retained in machine writers.
 
 Orchestration lives in `internal/app`. The scanner engine remains product-neutral. Credential
 verification and credential audit are not on this path.
@@ -47,6 +49,11 @@ instantaneous rate may briefly exceed the scanner-only budget.
 
 `--format` selects `console`, `json`, `jsonl`, `csv`, or `html`. When omitted, `output.format`
 from configuration applies. Machine formats use finding schema `0.1`. Logs stay on stderr.
+
+On a terminal, `garga scan` draws a live progress bar on stderr while probes are in flight
+(`completed/submitted`, percent, rate, and eta). The bar uses only counters: it never prints
+hosts or URLs. It stays hidden for a fast single-target run. `--no-progress` disables it.
+Piped stderr (CI, files) does not show the bar. Findings remain on stdout.
 
 | Code | Meaning |
 |---:|---|

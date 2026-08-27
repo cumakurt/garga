@@ -36,6 +36,7 @@ func Fingerprint(ctx context.Context, options Options) (result Result, err error
 		return Result{}, err
 	}
 	defer session.closeIdle()
+	defer session.closeProgress()
 
 	writer, err := newIdentityWriter(format, options.Output)
 	if err != nil {
@@ -43,6 +44,7 @@ func Fingerprint(ctx context.Context, options Options) (result Result, err error
 		return Result{}, err
 	}
 	defer func() {
+		session.closeProgress()
 		if closeErr := writer.Close(); closeErr != nil && err == nil {
 			err = internalError("write fingerprint identities", closeErr)
 		}

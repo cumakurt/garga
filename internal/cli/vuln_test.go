@@ -33,7 +33,7 @@ func TestVulnHelpDocumentsSignatureMatching(t *testing.T) {
 		t.Fatalf("exit code = %d; stderr = %q", exitCode, stderr.String())
 	}
 	help := stdout.String()
-	for _, needle := range []string{"--signatures", "--file", "potential", "GET", "exploit"} {
+	for _, needle := range []string{"--signatures", "--file", "potential", "GET", "exploit", "bundled", "--no-progress"} {
 		if !strings.Contains(help, needle) {
 			t.Errorf("help missing %q: %s", needle, help)
 		}
@@ -59,29 +59,12 @@ func TestVulnDoesNotRegisterPasswordFlag(t *testing.T) {
 	}
 }
 
-func TestVulnRequiresSignaturesAndTargets(t *testing.T) {
+func TestVulnRequiresTargets(t *testing.T) {
 	t.Parallel()
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	exitCode := Execute(
-		context.Background(),
-		[]string{"vuln", "http://127.0.0.1:9200"},
-		BuildInfo{},
-		strings.NewReader(""),
-		&stdout,
-		&stderr,
-	)
-	if exitCode != ExitInvalidInput {
-		t.Fatalf("exit code = %d; stderr = %q", exitCode, stderr.String())
-	}
-	if !strings.Contains(stderr.String(), "--signatures") {
-		t.Errorf("stderr = %q", stderr.String())
-	}
-
-	stderr.Reset()
-	stdout.Reset()
-	exitCode = Execute(
 		context.Background(),
 		[]string{"vuln", "--signatures", "/tmp/signatures"},
 		BuildInfo{},
