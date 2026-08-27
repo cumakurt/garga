@@ -4,7 +4,6 @@ import (
 	"context"
 	"html"
 	"io"
-	"strings"
 
 	"github.com/cumakurt/garga/internal/model"
 )
@@ -60,7 +59,6 @@ func (writer *htmlWriter) Write(ctx context.Context, finding model.Finding) erro
 		writer.started = true
 	}
 	finding = prepared(finding)
-	codes := evidenceCodes(finding)
 	title := finding.Title
 	rowClass := ""
 	if exploitable(finding) {
@@ -72,7 +70,7 @@ func (writer *htmlWriter) Write(ctx context.Context, finding model.Finding) erro
 		"</td><td>" + html.EscapeString(finding.CheckID) +
 		"</td><td>" + html.EscapeString(targetDisplay(finding.Target)) +
 		"</td><td>" + html.EscapeString(title) +
-		"</td><td>" + html.EscapeString(strings.Join(codes, ", ")) +
+		"</td><td>" + html.EscapeString(streamingEvidence(finding)) +
 		"</td></tr>\n"
 	_, err := io.WriteString(writer.output, row)
 	return err

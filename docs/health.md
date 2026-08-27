@@ -199,10 +199,13 @@ instead of being reported as negative activity.
 
 ## Reports and exit codes
 
-`--format` accepts `terminal`, `json`, `html`, and `markdown`. JSON uses a stable health-report
-schema version separate from the scan finding schema. Markdown includes findings, probable root
-causes, the prioritized action plan, collector coverage, telemetry, and methodology. Regardless
-of that stdout format, every completed assessment atomically writes a timestamped
+`--format` accepts `terminal`, `json`, `html`, and `markdown`. `terminal` (also accepted as
+`console`) is a colorized operator report on a TTY: findings are grouped by severity, then
+category, with aligned fields and a scored headline. Color is omitted when stdout is not a
+terminal, `TERM=dumb`, or `NO_COLOR` is set. JSON uses a stable health-report schema version
+separate from the scan finding schema. Markdown includes findings, probable root causes, the
+prioritized action plan, collector coverage, telemetry, and methodology. Regardless of that
+stdout format, every completed assessment atomically writes a timestamped
 `garga-health-*.html` artifact to the current directory with owner-only permissions and prints
 its absolute path on stderr. This preserves clean machine output while making a durable HTML
 report available in every mode.

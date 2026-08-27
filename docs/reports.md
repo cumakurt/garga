@@ -25,8 +25,8 @@ command does not contact the network. Invalid records exit `2` and are not echoe
 | `jsonl` | One self-describing finding object per line. Writers do not retain the complete scan. |
 | `json` | A document `{"schema_version":"0.1","findings":[...]}`. Findings are marshaled as they arrive. |
 | `csv` | A header row plus one row per finding, including `cve`, `cvss`, and `description`. Formula-like cells are prefixed with `'`. Machine formats also print a grouped console summary on stderr. |
-| `html` | A standalone document with inline CSS. All text is HTML-escaped. There are no scripts, links, images, or other network resources. Exploitable rows are highlighted. |
-| `console` | Human-oriented, grouped by target. Exploitable findings are listed first, then severity. Color is used on a terminal unless `NO_COLOR` is set. It is not a machine schema. |
+| `html` | A standalone document with inline CSS. All text is HTML-escaped. There are no scripts, links, images, or other network resources. Exploitable rows are highlighted. Each row's evidence cell lists observed proof cards (native codes plus target, transport, and product facts). |
+| `console` | Human-oriented, grouped by target. Exploitable findings are listed first, then severity. Color is used on a terminal unless `NO_COLOR` is set. Every finding prints visual evidence lines (`code — summary`). It is not a machine schema. |
 
 Deterministic machine formats emit findings in write order. Console buffers until `Close` and
 groups by target, then lists exploitable findings first, then severity (critical first). Empty
@@ -57,5 +57,8 @@ conditions without opening the machine file.
 
 `garga scan` additionally writes a timestamped standalone HTML assessment (`garga-scan-*.html`)
 to the current directory. That artifact is not the streaming `--format html` table: it is a
-health-themed report with an executive summary and per-finding cause, impact, cost, and
-remediation. Machine stdout writers still do not retain the complete scan.
+health-themed report with an executive summary and per-finding cause, impact, cost,
+remediation, and a visual **Observed evidence** panel that is always rendered for every finding
+(native check evidence plus observed target, transport, and product facts). Machine stdout
+writers still do not retain the complete scan. JSON, JSONL, and CSV keep the finding schema
+`evidence` field as emitted by checks; they do not invent extra codes.

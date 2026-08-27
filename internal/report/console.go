@@ -155,8 +155,12 @@ func writeFinding(b *strings.Builder, finding model.Finding, color bool) {
 	if finding.CVSS != nil {
 		writeField(b, "cvss", strconv.FormatFloat(*finding.CVSS, 'f', 1, 64))
 	}
-	if codes := evidenceCodes(finding); len(codes) > 0 {
-		writeField(b, "evidence", strings.Join(codes, ", "))
+	for index, card := range visualEvidence(finding) {
+		label := "evidence"
+		if index > 0 {
+			label = ""
+		}
+		writeField(b, label, formatEvidenceLine(card))
 	}
 	if finding.Description != "" {
 		writeField(b, "detail", finding.Description)

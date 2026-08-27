@@ -1,4 +1,4 @@
-# Complete garga health and align docs
+# Color and group garga health console output
 
 ## Status
 
@@ -6,22 +6,19 @@ Complete.
 
 ## Scope
 
-Make the uncommitted `garga health` stack production-ready: fix failing tests,
-evidence-based anonymous access, collector contracts, profile semantics,
-markdown/report ops, and documentation alignment.
+Make `garga health` terminal/console reports colored, severity-leveled, grouped, and
+aligned — without changing JSON, HTML, or Markdown contracts.
 
 ## Acceptance
 
-- [x] helpers_test compiles; AnonymousAccess is evidence-based; fail-on fixture has masters
-- [x] `--allow-plaintext-auth` emits a dedicated CRITICAL finding
-- [x] Collector rejects <7.17 and OpenSearch; snapshot history capped at 20/repo; cancel coverage recorded
-- [x] All eight profiles have distinct checker behavior
-- [x] Markdown reports include correlations, actions, collector coverage
-- [x] `GARGA_HEALTH_MAX_RESPONSE_BYTES` and `--max-response-bytes`; Makefile formats `brand.go`
-- [x] Tests for collector/normalize/correlation/redact/engine/CLI contracts
-- [x] Docs, CHANGELOG, example YAML, master plan WP 13.1, ADR 0002 aligned
+- [x] TTY color with `NO_COLOR` / dumb TERM / non-TTY disabled
+- [x] Findings grouped by severity, then category
+- [x] Colored score, counts, top risks, actions, and coverage
+- [x] Tests, docs, changelog
+- [x] Existing redaction and format tests still pass
 
 ## Review
 
-Anonymous access is now based on authenticate evidence rather than "no credential was sent".
-`Write` clones report slices before redaction so concurrent format writers cannot race.
+Terminal output now matches the scan console vocabulary: cyan section headers, gray rules,
+padded severity labels, and aligned `check` / `resource` / `evidence` fields. Findings are
+grouped `SEVERITY · Category (n)`. JSON/HTML/Markdown writers were not changed.

@@ -21,8 +21,8 @@ tr.exploitable td:nth-child(5) { font-weight: 700; }
 <table>
 <thead><tr><th>severity</th><th>confidence</th><th>check</th><th>target</th><th>title</th><th>evidence</th></tr></thead>
 <tbody>
-<tr><td>medium</td><td>high</td><td>garga.tls.not_enabled</td><td>http://192.168.1.10:9200/</td><td>Elasticsearch is reachable over HTTP</td><td>scheme-http</td></tr>
-<tr><td>high</td><td>medium</td><td>garga.exposure.anonymous_access</td><td>http://192.168.1.10:9200/</td><td>&lt;/td&gt;&lt;script&gt;alert(1)&lt;/script&gt;</td><td>anonymous-metadata</td></tr>
+<tr><td>medium</td><td>high</td><td>garga.tls.not_enabled</td><td>http://192.168.1.10:9200/</td><td>Elasticsearch is reachable over HTTP</td><td>scheme-http — Observed during the GET-only assessment.; observed_target — The finding was produced for http://192.168.1.10:9200/.; product_identity — elasticsearch was advertised by the endpoint.</td></tr>
+<tr><td>high</td><td>medium</td><td>garga.exposure.anonymous_access</td><td>http://192.168.1.10:9200/</td><td>&lt;/td&gt;&lt;script&gt;alert(1)&lt;/script&gt;</td><td>anonymous-metadata — Observed during the GET-only assessment.; observed_target — The finding was produced for http://192.168.1.10:9200/.; transport_http — The endpoint was reached over unencrypted HTTP.; product_identity — elasticsearch was advertised by the endpoint.</td></tr>
 </tbody>
 </table>
 </body>

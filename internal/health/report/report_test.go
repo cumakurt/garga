@@ -36,7 +36,46 @@ func TestWriteFormatsAndRedactsSensitiveEvidence(t *testing.T) {
 			if format == FormatMarkdown && (!strings.Contains(text, "Prioritized Action Plan") || !strings.Contains(text, "Probable Root Causes") || !strings.Contains(text, "Methodology") || !strings.Contains(text, "| Collector |")) {
 				t.Fatalf("markdown report is missing coverage sections: %s", text)
 			}
+			if format == FormatTerminal {
+				if strings.Contains(text, "\033[") {
+					t.Fatalf("non-TTY terminal output contains ANSI color: %q", text)
+				}
+				for _, expected := range []string{"HIGH  ·  Disk  (1)", "Top risks", "Findings", "Actions", "P1  urgent", "node/data-1", "0 critical", "1 high"} {
+					if !strings.Contains(text, expected) {
+						t.Fatalf("terminal output missing %q:\n%s", expected, text)
+					}
+				}
+			}
 		})
+	}
+}
+
+func TestTerminalGroupsBySeverityAndCategoryWithColor(t *testing.T) {
+	t.Parallel()
+	report := fixtureReport()
+	report.Findings = []healthmodel.Finding{
+		{ID: "ES-SEC-001", Category: "Security", Severity: healthmodel.SeverityCritical, Title: "Anonymous access", ResourceType: "cluster", Resource: "prod"},
+		{ID: "ES-JVM-001", Category: "JVM", Severity: healthmodel.SeverityHigh, Title: "Heap pressure", ResourceType: "node", Resource: "data-2"},
+		{ID: "ES-DISK-001", Category: "Disk", Severity: healthmodel.SeverityHigh, Title: "Disk pressure", ResourceType: "node", Resource: "data-1"},
+		{ID: "ES-INDEX-004", Category: "Index", Severity: healthmodel.SeverityInfo, Title: "Empty index", ResourceType: "index", Resource: "old"},
+	}
+	plain := renderTerminal(report, false)
+	critical := strings.Index(plain, "CRITICAL  ·  Security  (1)")
+	highDisk := strings.Index(plain, "HIGH  ·  Disk  (1)")
+	highJVM := strings.Index(plain, "HIGH  ·  JVM  (1)")
+	info := strings.Index(plain, "INFO  ·  Index  (1)")
+	if critical < 0 || highDisk < 0 || highJVM < 0 || info < 0 {
+		t.Fatalf("missing severity/category groups:\n%s", plain)
+	}
+	if !(critical < highDisk && highDisk < highJVM && highJVM < info) {
+		t.Fatalf("groups are not ordered by severity then category:\n%s", plain)
+	}
+	colored := renderTerminal(report, true)
+	if !strings.Contains(colored, ansiBold+ansiBrightRed) || !strings.Contains(colored, ansiReset) {
+		t.Fatalf("colored output missing severity ANSI codes: %q", colored)
+	}
+	if strings.Contains(renderTerminal(report, false), "\033[") {
+		t.Fatal("plain terminal output contains ANSI color")
 	}
 }
 
@@ -82,7 +121,7 @@ func TestWriteTimestampedHTMLCreatesPrivateStandaloneArtifact(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"data:image/png;base64,", "garga logo", "Executive Summary", "Detailed Findings", "Prioritized Action Plan", "Assessment Coverage", "https://www.linkedin.com/in/cuma-kurt-34414917/", "https://github.com/cumakurt", "Cuma Kurt"} {
+	for _, expected := range []string{"data:image/png;base64,", "garga logo", "Executive Summary", "Detailed Findings", "Prioritized Action Plan", "Assessment Coverage", "https://www.linkedin.com/in/cuma-kurt-34414917/", "https://github.com/cumakurt", "Cuma Kurt", `class="status-cell CRITICAL"`} {
 		if !bytes.Contains(payload, []byte(expected)) {
 			t.Fatalf("artifact does not contain %q", expected)
 		}

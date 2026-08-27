@@ -189,11 +189,13 @@ Useful flags: `--file`, `--format` (`console`, `json`, `jsonl`, `csv`, `html`), 
 `--per-host-rate`, `--max-targets`.
 
 On a terminal, large or slow scans draw a live progress bar on stderr (counters only; no hosts).
-`--no-progress` disables it. Findings stay on stdout. Regardless of `--format`, every completed
-scan also writes a timestamped, owner-only HTML report (`garga-scan-*.html`) to the current
-directory and prints its path on stderr. The document uses the same light theme as `garga health`
-and includes an executive summary plus detailed cause, impact, cost, and remediation for each
-finding.
+`--no-progress` disables it. Findings stay on stdout. Console listings always include visual
+evidence for every finding (`code — summary`, plus observed target, transport, and product
+facts). Regardless of `--format`, every completed scan also writes a timestamped, owner-only
+HTML report (`garga-scan-*.html`) to the current directory and prints its path on stderr. The
+document uses the same light theme as `garga health` and includes an executive summary plus
+detailed cause, impact, cost, remediation, and an always-visible observed-evidence panel for
+each finding. `--format html` stdout tables include the same evidence lines.
 
 CSV, JSON, JSONL, and HTML write machine output to stdout and a human detection summary to
 stderr. Console already prints that summary on stdout.
@@ -232,10 +234,12 @@ Normal mode avoids the higher-cost ILM, task, data-stream, node-settings, and sn
 `--deep` enables those checks. Credentials may be provided with `--username` and
 `--password-stdin`, `--api-key-stdin`, or `--bearer-token-stdin`. Credential transmission over
 plain HTTP is refused unless `--allow-plaintext-auth` is explicitly supplied, and that condition
-is reported as critical. Output formats are `terminal`, `json`, `html`, and `markdown`. Regardless
-of the selected stdout format, every completed assessment also writes a timestamped, standalone
-HTML report to the current directory and prints its path on stderr. The light-theme report embeds
-`garga.png` and includes executive, technical, remediation, coverage, and telemetry sections.
+is reported as critical. Output formats are `terminal`, `json`, `html`, and `markdown`.
+Terminal output is colorized on a TTY, grouped by severity then category, and aligned like
+`garga scan` console reports (`NO_COLOR` disables color). Regardless of the selected stdout
+format, every completed assessment also writes a timestamped, standalone HTML report to the
+current directory and prints its path on stderr. The light-theme report embeds `garga.png` and
+includes executive, technical, remediation, coverage, and telemetry sections.
 
 Details: [docs/health.md](docs/health.md).
 

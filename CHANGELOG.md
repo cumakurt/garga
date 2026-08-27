@@ -16,7 +16,9 @@ All notable changes to garga are documented in this file.
 - Every completed `garga scan` writes a timestamped, owner-only standalone HTML artifact
   (`garga-scan-*.html`) in the current directory, using the same light theme as health. The
   report includes an executive summary and per-finding cause, impact, cost if ignored,
-  remediation, and residual risk. Stdout `--format` is unchanged.
+  remediation, residual risk, and a visual observed-evidence panel for every finding.
+  Stdout `--format` is unchanged except that `--format html` evidence cells include the same
+  observed proof lines. Console scan output always prints evidence for each finding.
 - Standalone health and scan HTML reports include clickable developer LinkedIn and GitHub
   links in the footer.
 
@@ -51,6 +53,9 @@ All notable changes to garga are documented in this file.
   `debug`.
 - Console reports group findings by target, list exploitable findings first, use color on a
   terminal, and print a count summary including how many findings are exploitable.
+- `garga health` terminal reports use the same TTY color rules as scan console output. Findings
+  are grouped by severity, then category, with aligned check/resource/evidence fields, a colored
+  score headline, and prioritized action colors. `NO_COLOR` and non-TTY stdout stay uncolored.
 - Console and HTML listings highlight remotely usable compromise-class findings (`EXPLOITABLE`).
   The mark is not confirmed exploitation. Machine formats add an `exploitable` tag when the
   same classifier matches.

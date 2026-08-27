@@ -92,6 +92,19 @@ func TestWriteTimestampedScanHTMLCreatesPrivateStandaloneArtifact(t *testing.T) 
 		"https://github.com/cumakurt",
 		"LinkedIn",
 		"GitHub",
+		"Critical findings",
+		`class="score CRITICAL"`,
+		`class="status-cell CRITICAL"`,
+		"Risk score",
+		"Observed evidence",
+		`class="evidence-card"`,
+		`class="evidence-code"`,
+		"scheme_http",
+		"class_admin",
+		"observed_target",
+		"advisory_cve-2014-3120",
+		"cvss_score",
+		"The finding was produced for",
 	} {
 		if !strings.Contains(htmlReport, expected) {
 			t.Errorf("artifact missing %q", expected)
@@ -105,6 +118,16 @@ func TestWriteTimestampedScanHTMLCreatesPrivateStandaloneArtifact(t *testing.T) 
 	}
 	if strings.Contains(strings.ToLower(htmlReport), "<script") {
 		t.Fatal("HTML contains a script tag")
+	}
+	if got := strings.Count(htmlReport, "Observed evidence"); got != 3 {
+		t.Fatalf("Observed evidence panels = %d, want 3", got)
+	}
+	wantCards := 0
+	for _, finding := range findings {
+		wantCards += len(visualEvidence(finding))
+	}
+	if got := strings.Count(htmlReport, `class="evidence-card"`); got < wantCards {
+		t.Fatalf("evidence cards = %d, want at least %d", got, wantCards)
 	}
 }
 
@@ -158,6 +181,25 @@ func TestNarrativeExplainsAnonymousAdminCost(t *testing.T) {
 	}
 	if !strings.Contains(narrative.Cause, "Unauthenticated") {
 		t.Fatalf("cause = %q", narrative.Cause)
+	}
+}
+
+func TestScanHeadlineShowsCriticalCountInsteadOfCollapsedScore(t *testing.T) {
+	t.Parallel()
+	summary := scanHTMLSummary{Findings: 27, Critical: 1, High: 4, Medium: 22, Exploitable: 3, CVEs: 24}
+	count, label, class := scanHeadline(summary)
+	if count != 1 || class != "CRITICAL" || label != "Critical findings" {
+		t.Fatalf("headline = %d %q %q", count, label, class)
+	}
+	score, posture := scanRiskScore(summary)
+	if score <= 0 {
+		t.Fatalf("risk score collapsed to %d", score)
+	}
+	if posture != "Critical" {
+		t.Fatalf("posture = %q", posture)
+	}
+	if postureClass(posture) != "CRITICAL" {
+		t.Fatalf("posture class = %q", postureClass(posture))
 	}
 }
 

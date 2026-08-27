@@ -4,13 +4,20 @@ http://192.168.1.10:9200/
 HIGH      </td><script>alert(1)</script>
           check       garga.exposure.anonymous_access
           confidence  medium
-          evidence    anonymous-metadata
+          evidence    anonymous-metadata — Observed during the GET-only assessment.
+                      observed_target — The finding was produced for
+                      http://192.168.1.10:9200/.
+                      transport_http — The endpoint was reached over unencrypted HTTP.
+                      product_identity — elasticsearch was advertised by the endpoint.
           fix         =cmd|'/c calc'!A0
 
 MEDIUM    Elasticsearch is reachable over HTTP
           check       garga.tls.not_enabled
           confidence  high
-          evidence    scheme-http
+          evidence    scheme-http — Observed during the GET-only assessment.
+                      observed_target — The finding was produced for
+                      http://192.168.1.10:9200/.
+                      product_identity — elasticsearch was advertised by the endpoint.
           fix         Serve Elasticsearch only over HTTPS.
 
 ────────────────────────────────────────

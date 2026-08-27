@@ -60,9 +60,10 @@ Piped stderr (CI, files) does not show the bar. Findings remain on stdout.
 Every completed scan also writes `garga-scan-<timestamp>-<id>.html` in the working directory
 (mode `0600`) and prints the absolute path on stderr. The artifact uses the same standalone
 light theme as `garga health`: executive summary, top risks, affected targets, detailed
-findings (cause, impact, cost if ignored, fix, residual risk), a prioritized action plan, and
-coverage. `--format html` on stdout remains the compact streaming table for automation; the
-CWD file is the operator-facing assessment.
+findings (cause, impact, cost if ignored, fix, residual risk, and visual observed evidence),
+a prioritized action plan, and coverage. Console scan output and both HTML surfaces always
+show evidence for every finding. `--format html` on stdout remains the compact streaming
+table for automation; the CWD file is the operator-facing assessment.
 
 | Code | Meaning |
 |---:|---|
