@@ -54,3 +54,8 @@ CSV columns:
 When the selected format is not `console`, `garga scan`, `garga vuln`, and `garga report` also
 print a grouped human summary of the same findings on stderr so operators can see detected
 conditions without opening the machine file.
+
+`garga scan` additionally writes a timestamped standalone HTML assessment (`garga-scan-*.html`)
+to the current directory. That artifact is not the streaming `--format html` table: it is a
+health-themed report with an executive summary and per-finding cause, impact, cost, and
+remediation. Machine stdout writers still do not retain the complete scan.

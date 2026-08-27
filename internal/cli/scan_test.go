@@ -33,7 +33,7 @@ func TestScanHelpDocumentsReadOnlyAssessment(t *testing.T) {
 		t.Fatalf("exit code = %d; stderr = %q", exitCode, stderr.String())
 	}
 	help := stdout.String()
-	for _, needle := range []string{"--file", "--format", "--insecure", "--signatures", "--no-signatures", "--no-progress", "GET", "does not send credentials"} {
+	for _, needle := range []string{"--file", "--format", "--insecure", "--signatures", "--no-signatures", "--no-progress", "GET", "does not send credentials", "timestamped"} {
 		if !strings.Contains(help, needle) {
 			t.Errorf("help missing %q: %s", needle, help)
 		}
@@ -107,6 +107,7 @@ func TestScanRejectsInvalidTarget(t *testing.T) {
 
 func TestScanJSONLFindsOpenHTTPCluster(t *testing.T) {
 	clearProxyEnv(t)
+	t.Chdir(t.TempDir())
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
@@ -170,6 +171,7 @@ func TestScanJSONLFindsOpenHTTPCluster(t *testing.T) {
 
 func TestScanCSVPrintsDetectionNotice(t *testing.T) {
 	clearProxyEnv(t)
+	t.Chdir(t.TempDir())
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
@@ -218,6 +220,7 @@ func TestScanCSVPrintsDetectionNotice(t *testing.T) {
 
 func TestScanCSVReportsBundledCVE(t *testing.T) {
 	clearProxyEnv(t)
+	t.Chdir(t.TempDir())
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
@@ -292,6 +295,7 @@ func TestScanRejectsNoSignaturesWithSignatures(t *testing.T) {
 
 func TestScanFileAndPartialFailure(t *testing.T) {
 	clearProxyEnv(t)
+	t.Chdir(t.TempDir())
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
@@ -329,7 +333,7 @@ func TestScanFileAndPartialFailure(t *testing.T) {
 }
 
 func TestScanInterruptedContext(t *testing.T) {
-	t.Parallel()
+	t.Chdir(t.TempDir())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -350,6 +354,7 @@ func TestScanInterruptedContext(t *testing.T) {
 
 func TestScanBindsFormatFromConfig(t *testing.T) {
 	clearProxyEnv(t)
+	t.Chdir(t.TempDir())
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "text/plain")
@@ -383,6 +388,7 @@ func TestScanBindsFormatFromConfig(t *testing.T) {
 
 func TestScanDefaultLogLevelOmitsDebugAndInfoRecords(t *testing.T) {
 	clearProxyEnv(t)
+	t.Chdir(t.TempDir())
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "text/plain")
@@ -415,6 +421,91 @@ func TestScanDefaultLogLevelOmitsDebugAndInfoRecords(t *testing.T) {
 	}
 	if strings.Contains(logs, `"level":"DEBUG"`) || strings.Contains(logs, `"level":"debug"`) {
 		t.Fatalf("default log level emitted debug records: %q", logs)
+	}
+}
+
+func TestScanWritesTimestampedHTMLReport(t *testing.T) {
+	clearProxyEnv(t)
+	reportDirectory := t.TempDir()
+	t.Chdir(reportDirectory)
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		writer.Header().Set("X-Elastic-Product", "Elasticsearch")
+		if strings.HasSuffix(request.URL.Path, "/_security/_authenticate") {
+			writer.WriteHeader(http.StatusNotFound)
+			return
+		}
+		writer.WriteHeader(http.StatusOK)
+		if request.URL.Path == "/" || request.URL.Path == "" {
+			_, _ = io.WriteString(writer, elasticsearchScanBody)
+			return
+		}
+		_, _ = io.WriteString(writer, `{"status":"green"}`)
+	}))
+	t.Cleanup(server.Close)
+
+	configPath := filepath.Join(t.TempDir(), "garga.yaml")
+	if err := os.WriteFile(configPath, []byte("scanner:\n  retries: 0\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	exitCode := Execute(
+		context.Background(),
+		[]string{"scan", server.URL, "--format", "jsonl", "--no-signatures", "--config", configPath},
+		BuildInfo{Version: "test"},
+		strings.NewReader(""),
+		&stdout,
+		&stderr,
+	)
+	if exitCode != ExitSuccess {
+		t.Fatalf("exit code = %d; stderr = %q", exitCode, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), `"check_id":"garga.tls.not_enabled"`) {
+		t.Fatalf("stdout lost jsonl findings: %q", stdout.String())
+	}
+	artifacts, err := filepath.Glob(filepath.Join(reportDirectory, "garga-scan-*.html"))
+	if err != nil {
+		t.Fatalf("Glob() error = %v", err)
+	}
+	if len(artifacts) != 1 {
+		t.Fatalf("scan HTML artifacts = %v", artifacts)
+	}
+	info, err := os.Stat(artifacts[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("artifact permissions = %o", info.Mode().Perm())
+	}
+	payload, err := os.ReadFile(artifacts[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := string(payload)
+	for _, needle := range []string{
+		"data:image/png;base64,",
+		"garga logo",
+		"Executive Summary",
+		"Detailed Findings",
+		"Why this appeared",
+		"What it costs if ignored",
+		"How to fix it",
+		"Prioritized Action Plan",
+		"garga.tls.not_enabled",
+		"https://www.linkedin.com/in/cuma-kurt-34414917/",
+		"https://github.com/cumakurt",
+	} {
+		if !strings.Contains(html, needle) {
+			t.Errorf("artifact missing %q", needle)
+		}
+	}
+	if strings.Contains(strings.ToLower(html), "<script") {
+		t.Fatalf("scan HTML contains a script")
+	}
+	if !strings.Contains(stderr.String(), "HTML scan report written to") {
+		t.Fatalf("stderr missing artifact notice: %q", stderr.String())
 	}
 }
 

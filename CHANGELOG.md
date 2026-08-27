@@ -13,6 +13,12 @@ All notable changes to garga are documented in this file.
 - Every completed health assessment writes a timestamped, owner-only standalone HTML artifact in
   the current directory. The responsive light-theme report embeds `garga.png` and provides an
   executive dashboard, detailed evidence, correlations, remediation, coverage, and telemetry.
+- Every completed `garga scan` writes a timestamped, owner-only standalone HTML artifact
+  (`garga-scan-*.html`) in the current directory, using the same light theme as health. The
+  report includes an executive summary and per-finding cause, impact, cost if ignored,
+  remediation, and residual risk. Stdout `--format` is unchanged.
+- Standalone health and scan HTML reports include clickable developer LinkedIn and GitHub
+  links in the footer.
 
 - Cross-platform release archives, SHA-256 checksums, SPDX SBOMs, and an optional GPG signature
   of `SHA256SUMS`.
@@ -35,6 +41,10 @@ All notable changes to garga are documented in this file.
 
 ### Changed
 
+- `garga health` uses dedicated process codes: invalid flags, config, targets, and `--fail-on`
+  values return 2; collection, connection, authentication, product, and timeout failures return 5;
+  `--fail-on` warning/high/critical return 10/11/12. Those codes no longer overlay 1/2/3/4 used by
+  other commands.
 - `run.sh` is now `install.sh`. It installs build dependencies, builds `bin/garga`, and copies
   the binary to `PREFIX/bin`. It no longer launches garga commands.
 - Default `logging.level` is `warn`. Scanner start/finish JSON is `info`; per-probe records stay

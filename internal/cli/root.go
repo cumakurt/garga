@@ -15,8 +15,14 @@ const (
 	ExitInternalError  = 1
 	ExitInvalidInput   = 2
 	ExitPartialFailure = 3
-	ExitHealthError    = 4
 	ExitInterrupted    = 130
+
+	// Health uses a dedicated range so automation can tell a completed
+	// assessment from invalid input, an internal error, or a signature update.
+	ExitHealthFailure  = 5
+	ExitHealthWarning  = 10
+	ExitHealthHigh     = 11
+	ExitHealthCritical = 12
 )
 
 type executionError struct {

@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/cumakurt/garga/internal/capability"
 	"github.com/cumakurt/garga/internal/checks"
@@ -35,6 +36,7 @@ type Options struct {
 	Notice           io.Writer
 	Progress         io.Writer
 	NoProgress       bool
+	HTMLArtifact     bool
 }
 
 // Result is the operational outcome of one probe run. Findings and identities
@@ -55,6 +57,7 @@ func Scan(ctx context.Context, options Options) (Result, error) {
 		}
 		return Result{}, err
 	}
+	options.HTMLArtifact = true
 	return assess(ctx, options, registry, "scan requires at least one target")
 }
 
@@ -131,8 +134,23 @@ func assess(ctx context.Context, options Options, registry *checks.Registry, emp
 	if options.Notice != nil && format != report.FormatConsole {
 		writer = report.WithNotice(writer, options.Notice)
 	}
+	var artifact *report.HTMLArtifactWriter
+	if options.HTMLArtifact {
+		artifact = report.WithHTMLArtifact(writer, options.Notice, options.UserAgent)
+		writer = artifact
+	}
+	started := time.Now()
+	var stats scanner.Stats
 	defer func() {
 		session.closeProgress()
+		if artifact != nil {
+			artifact.SetCoverage(report.ProbeCoverage{
+				Submitted: stats.Submitted,
+				Succeeded: stats.Succeeded,
+				Failed:    stats.Failed,
+				Duration:  time.Since(started),
+			})
+		}
 		if closeErr := writer.Close(); closeErr != nil && err == nil {
 			err = internalError("write report", closeErr)
 		}

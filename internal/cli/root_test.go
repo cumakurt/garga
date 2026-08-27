@@ -158,3 +158,29 @@ func TestExecuteVersionClassifiesOutputFailure(t *testing.T) {
 		t.Errorf("stderr = %q, want safe output failure message", stderr.String())
 	}
 }
+
+func TestHealthExitCodesAreDistinctFromProcessCodes(t *testing.T) {
+	t.Parallel()
+	process := map[int]string{
+		ExitSuccess:        "success",
+		ExitInternalError:  "internal",
+		ExitInvalidInput:   "invalid-input",
+		ExitPartialFailure: "partial",
+		ExitUpdateFailure:  "update",
+		ExitInterrupted:    "interrupted",
+	}
+	healthCodes := map[int]string{
+		ExitHealthFailure:  "health-failure",
+		ExitHealthWarning:  "health-warning",
+		ExitHealthHigh:     "health-high",
+		ExitHealthCritical: "health-critical",
+	}
+	if ExitHealthFailure == ExitUpdateFailure {
+		t.Fatal("health collection failure must not reuse the signature-update code")
+	}
+	for code, name := range healthCodes {
+		if collision, ok := process[code]; ok {
+			t.Errorf("%s (%d) collides with process code %s", name, code, collision)
+		}
+	}
+}

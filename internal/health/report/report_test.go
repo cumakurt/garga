@@ -82,7 +82,7 @@ func TestWriteTimestampedHTMLCreatesPrivateStandaloneArtifact(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"data:image/png;base64,", "garga logo", "Executive Summary", "Detailed Findings", "Prioritized Action Plan", "Assessment Coverage"} {
+	for _, expected := range []string{"data:image/png;base64,", "garga logo", "Executive Summary", "Detailed Findings", "Prioritized Action Plan", "Assessment Coverage", "https://www.linkedin.com/in/cuma-kurt-34414917/", "https://github.com/cumakurt", "Cuma Kurt"} {
 		if !bytes.Contains(payload, []byte(expected)) {
 			t.Fatalf("artifact does not contain %q", expected)
 		}

@@ -5,3 +5,5 @@
 *.prof
 *.test
 AGENTS.md
+/garga-health-*.html
+/garga-scan-*.html

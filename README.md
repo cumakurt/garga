@@ -15,6 +15,7 @@ release documents them as such.
 
 | | |
 |---|---|
+| Developer | [Cuma Kurt](https://github.com/cumakurt) · [LinkedIn](https://www.linkedin.com/in/cuma-kurt-34414917/) |
 | Module | [`github.com/cumakurt/garga`](https://github.com/cumakurt/garga) |
 | License | [GNU AGPL v3.0 only](LICENSE) (`AGPL-3.0-only`) |
 | Language | Go 1.26 or later (CI also tests Go 1.27) |
@@ -188,7 +189,11 @@ Useful flags: `--file`, `--format` (`console`, `json`, `jsonl`, `csv`, `html`), 
 `--per-host-rate`, `--max-targets`.
 
 On a terminal, large or slow scans draw a live progress bar on stderr (counters only; no hosts).
-`--no-progress` disables it. Findings stay on stdout.
+`--no-progress` disables it. Findings stay on stdout. Regardless of `--format`, every completed
+scan also writes a timestamped, owner-only HTML report (`garga-scan-*.html`) to the current
+directory and prints its path on stderr. The document uses the same light theme as `garga health`
+and includes an executive summary plus detailed cause, impact, cost, and remediation for each
+finding.
 
 CSV, JSON, JSONL, and HTML write machine output to stdout and a human detection summary to
 stderr. Console already prints that summary on stdout.
@@ -400,11 +405,17 @@ Credentials, tokens, and authorization material are redacted. See
 | Code | Meaning |
 |---:|---|
 | 0 | Success. Findings do not fail `scan` / `fingerprint` / `vuln`. `garga health` also exits 0 when `--fail-on` is unset or the highest finding is below that threshold. |
-| 1 | Unexpected internal or output failure. For `garga health --fail-on`, also used when the highest finding is medium/warning. |
-| 2 | Invalid CLI, configuration, target input, or signature directory. For `garga health --fail-on`, also used when the highest finding is high. |
-| 3 | Run finished, but at least one probe failed operationally. For `garga health --fail-on`, also used when the highest finding is critical. |
-| 4 | Signature update verification, archive, or validation failure. `garga health` also uses 4 for connection, authentication, product, configuration, or collection errors, including invalid health flags. |
+| 1 | Unexpected internal or output failure. |
+| 2 | Invalid CLI, configuration, target input, or signature directory. `garga health` uses the same code for invalid flags, config, targets, credentials, or `--fail-on` values. |
+| 3 | Run finished, but at least one probe failed operationally. |
+| 4 | Signature update verification, archive, or validation failure. |
+| 5 | `garga health` collection, connection, authentication, product, or timeout failure. |
+| 10 | `garga health --fail-on`: highest finding is medium/warning. |
+| 11 | `garga health --fail-on`: highest finding is high. |
+| 12 | `garga health --fail-on`: highest finding is critical. |
 | 130 | Interrupted |
+
+Health writes the report before a `--fail-on` severity code. Those codes are not reused by other commands.
 
 ## Elasticsearch support
 
@@ -471,6 +482,9 @@ Roadmap and acceptance criteria: [garga-MASTER-PLAN.md](garga-MASTER-PLAN.md).
 | Changelog | [CHANGELOG.md](CHANGELOG.md) |
 
 ## Contributing and license
+
+garga is developed by [Cuma Kurt](https://github.com/cumakurt)
+([LinkedIn](https://www.linkedin.com/in/cuma-kurt-34414917/)).
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, engineering, validation, and contribution
 requirements. Dependency policy is in [docs/dependency-policy.md](docs/dependency-policy.md).

@@ -36,7 +36,9 @@ and keeps TLS/exposure checks. Scan does not fetch or activate signed update bun
 4. Evaluate the check registry and bundled (or `--signatures`) CVE matches into `model.Finding` values.
 5. Stream findings to the selected reporter. Console and HTML emphasize exploitable findings.
    CSV, JSON, JSONL, and HTML also print a human detection summary on stderr. The complete
-   scan is not retained in machine writers.
+   scan is not retained in machine writers. Independently of `--format`, a detailed timestamped
+   HTML artifact is written to the current directory when the scan has submitted probes or
+   produced findings.
 
 Orchestration lives in `internal/app`. The scanner engine remains product-neutral. Credential
 verification and credential audit are not on this path.
@@ -54,6 +56,13 @@ On a terminal, `garga scan` draws a live progress bar on stderr while probes are
 (`completed/submitted`, percent, rate, and eta). The bar uses only counters: it never prints
 hosts or URLs. It stays hidden for a fast single-target run. `--no-progress` disables it.
 Piped stderr (CI, files) does not show the bar. Findings remain on stdout.
+
+Every completed scan also writes `garga-scan-<timestamp>-<id>.html` in the working directory
+(mode `0600`) and prints the absolute path on stderr. The artifact uses the same standalone
+light theme as `garga health`: executive summary, top risks, affected targets, detailed
+findings (cause, impact, cost if ignored, fix, residual risk), a prioritized action plan, and
+coverage. `--format html` on stdout remains the compact streaming table for automation; the
+CWD file is the operator-facing assessment.
 
 | Code | Meaning |
 |---:|---|

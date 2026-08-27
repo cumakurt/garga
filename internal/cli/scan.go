@@ -43,7 +43,10 @@ failed operationally. CVE hits stay potential: version evidence is not
 confirmed exploitation.
 
 On a terminal, long or large scans draw a live progress bar on stderr.
-Use --no-progress to disable it. Findings stay on stdout.
+Use --no-progress to disable it. Findings stay on stdout. Every completed
+scan also writes a timestamped standalone HTML report to the current
+directory, using the same theme as garga health, and prints its path on
+stderr.
 
 Supply targets as arguments, a --file of line-oriented hosts/CIDRs/URLs,
 or both. --file - reads targets from stdin. --insecure skips TLS

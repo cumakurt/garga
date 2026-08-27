@@ -20,6 +20,8 @@ schema `1.0` before the first public tag would freeze a pre-release field set.
 - Supported formats are `console`, `json`, `jsonl`, `csv`, and `html`.
 - Machine formats carry `schema_version` `0.1`. Console output is not a machine schema.
 - HTML uses `html.EscapeString` for all finding text, inline CSS only, and no external resources.
+  `garga scan` also writes a buffered, timestamped HTML assessment to the working directory; that
+  side channel does not change streaming stdout writers.
 - `garga report` reads JSONL from stdin or `--input` and writes one of the formats. It does not
   contact the network.
 

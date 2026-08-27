@@ -215,19 +215,23 @@ collector-by-collector coverage, scanner telemetry, and methodology. The artifac
 enough to be reviewed independently of terminal output.
 
 By default, findings are reported without failing the process. `--fail-on warning`,
-`--fail-on high`, or `--fail-on critical` enables automation thresholds:
+`--fail-on high`, or `--fail-on critical` enables automation thresholds. Health uses dedicated
+codes so those results are not confused with other commands:
 
 | Code | Meaning |
 |---:|---|
 | 0 | Assessment completed below the requested failure threshold |
-| 1 | At least medium/warning severity at the requested threshold |
-| 2 | At least high severity at the requested threshold |
-| 3 | At least critical severity at the requested threshold |
-| 4 | Connection, authentication, product, configuration, or health collection error |
+| 1 | Report or baseline write failure |
+| 2 | Invalid flags, configuration, target, credentials, or `--fail-on` value |
+| 5 | Connection, authentication, product, timeout, or health collection failure |
+| 10 | Highest finding is medium/warning at or above the requested threshold |
+| 11 | Highest finding is high at or above the requested threshold |
+| 12 | Highest finding is critical at or above the requested threshold |
 | 130 | Interrupted |
 
 The report is written before a severity exit code is returned. Output errors remain general
-internal errors rather than health-state results.
+internal errors (exit 1) rather than health-state results. Code 4 is reserved for signature
+update failures and is not used by `garga health`.
 
 ## Deliberate limits
 

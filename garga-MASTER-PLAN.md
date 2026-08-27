@@ -293,11 +293,16 @@ Planned exit codes:
 | 1 | Unexpected internal or operational failure |
 | 2 | Invalid CLI, configuration, or target input |
 | 3 | Scan completed with partial operational failures |
-| 4 | Signature update or validation failure. `garga health` also uses 4 for connection, authentication, product, configuration, or collection errors. |
+| 4 | Signature update or validation failure |
+| 5 | `garga health` collection, connection, authentication, product, or timeout failure |
+| 10 | `garga health --fail-on`: highest finding is medium/warning |
+| 11 | `garga health --fail-on`: highest finding is high |
+| 12 | `garga health --fail-on`: highest finding is critical |
 | 130 | Interrupted by the user |
 
-`garga health --fail-on` overlays 1/2/3 with medium/high/critical severity when the assessment
-itself completed. Those codes keep their scan meanings for every other command.
+`garga health --fail-on` uses 10/11/12 after a completed assessment. Invalid health flags and
+configuration use 2, matching other commands. Collection failures use 5 so they cannot be
+confused with signature-update failures (4).
 
 Global configuration precedence is `CLI > environment > config file > built-in defaults`.
 `--insecure` disables only TLS certificate verification; it never disables other safety controls.
@@ -786,6 +791,7 @@ boundaries and acceptance tests are already stable.
 - Product identification rejects OpenSearch and Elasticsearch before 7.17.
 - Checkers never perform network I/O; missing collectors skip affected checks.
 - Credentials never appear in reports, logs, or baseline files.
+- `--fail-on` uses dedicated codes 10/11/12; collection failures use 5; invalid input uses 2.
 - `make check` and `make test-race` pass.
 
 ## 8. Testing strategy

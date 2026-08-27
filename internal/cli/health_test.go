@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	healthmodel "github.com/cumakurt/garga/internal/health/model"
 )
 
 func TestHealthCommandWritesStableJSONAndUsesGETOnly(t *testing.T) {
@@ -61,7 +63,7 @@ func TestHealthCommandWritesStableJSONAndUsesGETOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"garga logo", "Executive Summary", "Detailed Findings", "Assessment Coverage"} {
+	for _, expected := range []string{"garga logo", "Executive Summary", "Detailed Findings", "Assessment Coverage", "https://www.linkedin.com/in/cuma-kurt-34414917/", "https://github.com/cumakurt"} {
 		if !bytes.Contains(artifact, []byte(expected)) {
 			t.Fatalf("HTML artifact does not contain %q", expected)
 		}
@@ -82,8 +84,8 @@ func TestHealthCommandRefusesCredentialOverHTTPAndRedactsIt(t *testing.T) {
 	t.Setenv("ESHEALTH_PASSWORD", canary)
 	var stdout, stderr bytes.Buffer
 	exitCode := Execute(context.Background(), []string{"health", "http://127.0.0.1:9200"}, BuildInfo{}, strings.NewReader(""), &stdout, &stderr)
-	if exitCode != ExitHealthError {
-		t.Fatalf("Execute() exit = %d, want %d", exitCode, ExitHealthError)
+	if exitCode != ExitInvalidInput {
+		t.Fatalf("Execute() exit = %d, want %d", exitCode, ExitInvalidInput)
 	}
 	if strings.Contains(stdout.String(), canary) || strings.Contains(stderr.String(), canary) {
 		t.Fatalf("credential leaked: stdout=%q stderr=%q", stdout.String(), stderr.String())
@@ -100,8 +102,8 @@ func TestHealthFailOnHighUsesAutomationExitCode(t *testing.T) {
 	defer server.Close()
 	var stdout, stderr bytes.Buffer
 	exitCode := Execute(context.Background(), []string{"health", server.URL, "--format", "json", "--requests-per-second", "100", "--fail-on", "high"}, BuildInfo{}, strings.NewReader(""), &stdout, &stderr)
-	if exitCode != 2 {
-		t.Fatalf("Execute() exit = %d, want 2; stderr=%q", exitCode, stderr.String())
+	if exitCode != ExitHealthHigh {
+		t.Fatalf("Execute() exit = %d, want %d; stderr=%q", exitCode, ExitHealthHigh, stderr.String())
 	}
 	if stdout.Len() == 0 {
 		t.Fatal("health report was not written before severity exit")
@@ -116,7 +118,7 @@ func TestHealthHelpDocumentsSafetyAndFlags(t *testing.T) {
 		t.Fatalf("exit code = %d; stderr = %q", exitCode, stderr.String())
 	}
 	help := stdout.String()
-	for _, needle := range []string{"--profile", "--deep", "--format", "--fail-on", "--baseline", "--snapshot-out", "--password-stdin", "--api-key-stdin", "--bearer-token-stdin", "--allow-plaintext-auth", "--max-response-bytes", "GET"} {
+	for _, needle := range []string{"--profile", "--deep", "--format", "--fail-on", "--baseline", "--snapshot-out", "--password-stdin", "--api-key-stdin", "--bearer-token-stdin", "--allow-plaintext-auth", "--max-response-bytes", "GET", "10/11/12"} {
 		if !strings.Contains(help, needle) {
 			t.Errorf("help missing %q", needle)
 		}
@@ -126,12 +128,12 @@ func TestHealthHelpDocumentsSafetyAndFlags(t *testing.T) {
 	}
 }
 
-func TestHealthInvalidFailOnExitsHealthError(t *testing.T) {
+func TestHealthInvalidFailOnExitsInvalidInput(t *testing.T) {
 	t.Chdir(t.TempDir())
 	var stdout, stderr bytes.Buffer
 	exitCode := Execute(context.Background(), []string{"health", "http://127.0.0.1:9200", "--fail-on", "nope"}, BuildInfo{}, strings.NewReader(""), &stdout, &stderr)
-	if exitCode != ExitHealthError {
-		t.Fatalf("Execute() exit = %d, want %d; stderr=%q", exitCode, ExitHealthError, stderr.String())
+	if exitCode != ExitInvalidInput {
+		t.Fatalf("Execute() exit = %d, want %d; stderr=%q", exitCode, ExitInvalidInput, stderr.String())
 	}
 }
 
@@ -203,8 +205,44 @@ func TestHealthFailOnWarningUsesAutomationExitCode(t *testing.T) {
 	defer server.Close()
 	var stdout, stderr bytes.Buffer
 	exitCode := Execute(context.Background(), []string{"health", server.URL, "--format", "json", "--requests-per-second", "100", "--fail-on", "warning"}, BuildInfo{}, strings.NewReader(""), &stdout, &stderr)
-	if exitCode != 2 {
-		t.Fatalf("Execute() exit = %d, want 2 for high TLS finding; stderr=%q", exitCode, stderr.String())
+	if exitCode != ExitHealthHigh {
+		t.Fatalf("Execute() exit = %d, want %d for high TLS finding; stderr=%q", exitCode, ExitHealthHigh, stderr.String())
+	}
+}
+
+func TestHealthAuthenticationFailureUsesHealthFailureCode(t *testing.T) {
+	t.Chdir(t.TempDir())
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+	var stdout, stderr bytes.Buffer
+	exitCode := Execute(context.Background(), []string{"health", server.URL, "--format", "json"}, BuildInfo{}, strings.NewReader(""), &stdout, &stderr)
+	if exitCode != ExitHealthFailure {
+		t.Fatalf("Execute() exit = %d, want %d; stderr=%q", exitCode, ExitHealthFailure, stderr.String())
+	}
+}
+
+func TestHealthFailureCodeUsesDedicatedSeverityExits(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		highest   healthmodel.Severity
+		threshold healthmodel.Severity
+		want      int
+	}{
+		{healthmodel.SeverityLow, healthmodel.SeverityMedium, 0},
+		{healthmodel.SeverityMedium, healthmodel.SeverityMedium, ExitHealthWarning},
+		{healthmodel.SeverityHigh, healthmodel.SeverityMedium, ExitHealthHigh},
+		{healthmodel.SeverityHigh, healthmodel.SeverityHigh, ExitHealthHigh},
+		{healthmodel.SeverityCritical, healthmodel.SeverityHigh, ExitHealthCritical},
+		{healthmodel.SeverityCritical, healthmodel.SeverityCritical, ExitHealthCritical},
+		{healthmodel.SeverityMedium, healthmodel.SeverityHigh, 0},
+	}
+	for _, testCase := range cases {
+		code, _ := healthFailureCode([]healthmodel.Finding{{Severity: testCase.highest}}, testCase.threshold)
+		if code != testCase.want {
+			t.Errorf("highest=%s threshold=%s code=%d, want %d", testCase.highest, testCase.threshold, code, testCase.want)
+		}
 	}
 }
 

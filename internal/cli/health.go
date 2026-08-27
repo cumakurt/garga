@@ -63,7 +63,7 @@ refused unless --allow-plaintext-auth is explicitly set.
 	cmd.Flags().Float64Var(&options.rate, "requests-per-second", config.DefaultHealthRate, "maximum Elasticsearch health requests per second")
 	cmd.Flags().IntVar(&options.topN, "top-n", config.DefaultHealthTopN, "number of top risks and resource consumers")
 	cmd.Flags().Int64Var(&options.maxResponseBytes, "max-response-bytes", config.DefaultHealthMaxResponse, "maximum Elasticsearch response body size in bytes")
-	cmd.Flags().StringVar(&options.failOn, "fail-on", "", "return a severity exit code at or above: warning, high, or critical")
+	cmd.Flags().StringVar(&options.failOn, "fail-on", "", "exit 10/11/12 when findings reach warning, high, or critical")
 	cmd.Flags().StringVar(&options.baselinePath, "baseline", "", "baseline JSON file for cumulative-counter delta analysis")
 	cmd.Flags().StringVar(&options.snapshotOut, "snapshot-out", "", "save a secret-free counter baseline JSON file")
 	cmd.Flags().BoolVar(&options.overwriteSnapshot, "force", false, "replace an existing --snapshot-out file")
@@ -90,18 +90,18 @@ type healthCLIOptions struct {
 
 func runHealth(cmd *cobra.Command, buildInfo BuildInfo, options healthCLIOptions) error {
 	if options.timeout <= 0 || options.timeout > 24*time.Hour {
-		return healthExecutionError("health timeout must be greater than 0 and at most 24h", nil)
+		return healthInputError("health timeout must be greater than 0 and at most 24h", nil)
 	}
 	if options.overwriteSnapshot && strings.TrimSpace(options.snapshotOut) == "" {
-		return healthExecutionError("--force requires --snapshot-out", nil)
+		return healthInputError("--force requires --snapshot-out", nil)
 	}
 	parsedTarget, err := target.Parse(options.target, "cli")
 	if err != nil {
-		return healthExecutionError("invalid health target", err)
+		return healthInputError("invalid health target", err)
 	}
 	endpoint, err := target.Endpoint(parsedTarget)
 	if err != nil {
-		return healthExecutionError("invalid health target", err)
+		return healthInputError("invalid health target", err)
 	}
 
 	secret, err := healthSecret(cmd, options)
@@ -143,21 +143,21 @@ func runHealth(cmd *cobra.Command, buildInfo BuildInfo, options healthCLIOptions
 	}
 	cfg, err := config.Load(config.Options{ConfigPath: options.configPath, Overrides: overrides})
 	if err != nil {
-		return healthExecutionError("invalid health configuration", err)
+		return healthInputError("invalid health configuration", err)
 	}
 	format, err := healthreport.ParseFormat(options.format)
 	if err != nil {
-		return healthExecutionError("health report format is not supported", err)
+		return healthInputError("health report format is not supported", err)
 	}
 	failOn, err := parseFailOn(options.failOn)
 	if err != nil {
-		return healthExecutionError("invalid --fail-on severity", err)
+		return healthInputError("invalid --fail-on severity", err)
 	}
 	var baseline *healthmodel.Baseline
 	if strings.TrimSpace(options.baselinePath) != "" {
 		baseline, err = health.LoadBaseline(options.baselinePath)
 		if err != nil {
-			return healthExecutionError("invalid health baseline", err)
+			return healthInputError("invalid health baseline", err)
 		}
 	}
 
@@ -174,7 +174,7 @@ func runHealth(cmd *cobra.Command, buildInfo BuildInfo, options healthCLIOptions
 	}
 	if options.snapshotOut != "" {
 		if err := health.SaveBaseline(options.snapshotOut, result.Baseline, options.overwriteSnapshot); err != nil {
-			return healthExecutionError("save health baseline failed", err)
+			return &executionError{exitCode: ExitInternalError, message: "save health baseline failed", cause: err}
 		}
 	}
 	artifactPath, err := healthreport.WriteTimestampedHTML(result.Report)
@@ -203,7 +203,7 @@ func healthSecret(cmd *cobra.Command, options healthCLIOptions) (*credential.Sec
 		}
 	}
 	if mechanisms > 1 {
-		return nil, healthExecutionError("select only one health authentication mechanism", nil)
+		return nil, healthInputError("select only one health authentication mechanism", nil)
 	}
 	username := strings.TrimSpace(options.username)
 	if username == "" {
@@ -212,29 +212,29 @@ func healthSecret(cmd *cobra.Command, options healthCLIOptions) (*credential.Sec
 	if mechanisms == 1 {
 		value, err := readSecretLine(cmd.InOrStdin())
 		if err != nil {
-			return nil, healthExecutionError("read health credential from stdin", err)
+			return nil, healthInputError("read health credential from stdin", err)
 		}
 		switch {
 		case options.passwordStdin:
 			if username == "" {
 				zeroBytes(value)
-				return nil, healthExecutionError("--password-stdin requires --username or ESHEALTH_USERNAME", nil)
+				return nil, healthInputError("--password-stdin requires --username or ESHEALTH_USERNAME", nil)
 			}
 			secret, createErr := credential.NewBasic(username, value)
 			if createErr != nil {
-				return nil, healthExecutionError("invalid Basic Auth credential", createErr)
+				return nil, healthInputError("invalid Basic Auth credential", createErr)
 			}
 			return secret, nil
 		case options.apiKeyStdin:
 			secret, createErr := credential.NewAPIKey(value)
 			if createErr != nil {
-				return nil, healthExecutionError("invalid API key", createErr)
+				return nil, healthInputError("invalid API key", createErr)
 			}
 			return secret, nil
 		default:
 			secret, createErr := credential.NewBearer(value)
 			if createErr != nil {
-				return nil, healthExecutionError("invalid Bearer token", createErr)
+				return nil, healthInputError("invalid Bearer token", createErr)
 			}
 			return secret, nil
 		}
@@ -247,14 +247,14 @@ func healthSecret(cmd *cobra.Command, options healthCLIOptions) (*credential.Sec
 	for _, candidate := range environment {
 		if value, present := os.LookupEnv(candidate.name); present && value != "" {
 			if selectedKind != "" {
-				return nil, healthExecutionError("multiple ESHEALTH credential variables are set", nil)
+				return nil, healthInputError("multiple ESHEALTH credential variables are set", nil)
 			}
 			selectedValue, selectedKind = value, candidate.kind
 		}
 	}
 	if selectedKind == "" {
 		if username != "" {
-			return nil, healthExecutionError("a Basic Auth username requires --password-stdin or ESHEALTH_PASSWORD", nil)
+			return nil, healthInputError("a Basic Auth username requires --password-stdin or ESHEALTH_PASSWORD", nil)
 		}
 		return nil, nil
 	}
@@ -263,23 +263,23 @@ func healthSecret(cmd *cobra.Command, options healthCLIOptions) (*credential.Sec
 	case credential.KindBasic:
 		if username == "" {
 			zeroBytes(value)
-			return nil, healthExecutionError("ESHEALTH_PASSWORD requires --username or ESHEALTH_USERNAME", nil)
+			return nil, healthInputError("ESHEALTH_PASSWORD requires --username or ESHEALTH_USERNAME", nil)
 		}
 		secret, createErr := credential.NewBasic(username, value)
 		if createErr != nil {
-			return nil, healthExecutionError("invalid Basic Auth credential", createErr)
+			return nil, healthInputError("invalid Basic Auth credential", createErr)
 		}
 		return secret, nil
 	case credential.KindAPIKey:
 		secret, createErr := credential.NewAPIKey(value)
 		if createErr != nil {
-			return nil, healthExecutionError("invalid API key", createErr)
+			return nil, healthInputError("invalid API key", createErr)
 		}
 		return secret, nil
 	default:
 		secret, createErr := credential.NewBearer(value)
 		if createErr != nil {
-			return nil, healthExecutionError("invalid Bearer token", createErr)
+			return nil, healthInputError("invalid Bearer token", createErr)
 		}
 		return secret, nil
 	}
@@ -312,11 +312,11 @@ func healthFailureCode(findings []healthmodel.Finding, threshold healthmodel.Sev
 	}
 	switch highest {
 	case healthmodel.SeverityCritical:
-		return 3, highest
+		return ExitHealthCritical, highest
 	case healthmodel.SeverityHigh:
-		return 2, highest
+		return ExitHealthHigh, highest
 	default:
-		return 1, highest
+		return ExitHealthWarning, highest
 	}
 }
 
@@ -325,15 +325,22 @@ func classifyHealthError(err error) error {
 		return err
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
-		return healthExecutionError("health assessment timed out", err)
+		return healthOperationalError("health assessment timed out", err)
 	}
 	var healthError *health.Error
 	if errors.As(err, &healthError) {
-		return &executionError{exitCode: ExitHealthError, message: healthError.Error(), cause: err}
+		if healthError.Kind == health.ErrorConfiguration {
+			return healthInputError(healthError.Error(), err)
+		}
+		return healthOperationalError(healthError.Error(), err)
 	}
-	return &executionError{exitCode: ExitHealthError, message: "health assessment failed", cause: err}
+	return healthOperationalError("health assessment failed", err)
 }
 
-func healthExecutionError(message string, cause error) error {
-	return &executionError{exitCode: ExitHealthError, message: message, cause: cause}
+func healthInputError(message string, cause error) error {
+	return &executionError{exitCode: ExitInvalidInput, message: message, cause: cause}
+}
+
+func healthOperationalError(message string, cause error) error {
+	return &executionError{exitCode: ExitHealthFailure, message: message, cause: cause}
 }

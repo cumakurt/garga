@@ -43,6 +43,7 @@ const elasticsearchRootBody = `{
 
 func TestScanEmitsExposureFindingsForOpenHTTPCluster(t *testing.T) {
 	clearProxyEnv(t)
+	t.Chdir(t.TempDir())
 
 	recorder := newMethodRecorder()
 	server := httptest.NewServer(recorder.handler(openElasticsearchHandler()))
@@ -76,6 +77,7 @@ func TestScanEmitsExposureFindingsForOpenHTTPCluster(t *testing.T) {
 
 func TestScanSkipsCapabilityProbesForNonElasticsearch(t *testing.T) {
 	clearProxyEnv(t)
+	t.Chdir(t.TempDir())
 
 	recorder := newMethodRecorder()
 	server := httptest.NewServer(recorder.handler(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
@@ -137,7 +139,7 @@ func TestScanRejectsInvalidSignatureDirectory(t *testing.T) {
 }
 
 func TestScanHonorsCancellation(t *testing.T) {
-	t.Parallel()
+	t.Chdir(t.TempDir())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -159,6 +161,7 @@ func TestScanHonorsCancellation(t *testing.T) {
 
 func TestScanCountsUnreachableTargetsAsFailures(t *testing.T) {
 	clearProxyEnv(t)
+	t.Chdir(t.TempDir())
 
 	recorder := newMethodRecorder()
 	server := httptest.NewServer(recorder.handler(openElasticsearchHandler()))
@@ -348,6 +351,7 @@ func TestScanLoadsOptionalSignatures(t *testing.T) {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
+	t.Chdir(t.TempDir())
 	var stdout bytes.Buffer
 	options := testScanOptions(t, server.URL, &stdout)
 	options.SignatureDir = dir
