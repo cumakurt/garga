@@ -1,4 +1,4 @@
-# Color and group garga health console output
+# Scan HTML pentest report structure
 
 ## Status
 
@@ -6,19 +6,18 @@ Complete.
 
 ## Scope
 
-Make `garga health` terminal/console reports colored, severity-leveled, grouped, and
-aligned — without changing JSON, HTML, or Markdown contracts.
+Restructure `garga-scan-*.html` as an international penetration-test report (PTES,
+NIST SP 800-115, OWASP, CREST) without changing GET-only safety or machine stdout formats.
 
 ## Acceptance
 
-- [x] TTY color with `NO_COLOR` / dumb TERM / non-TTY disabled
-- [x] Findings grouped by severity, then category
-- [x] Colored score, counts, top risks, actions, and coverage
-- [x] Tests, docs, changelog
-- [x] Existing redaction and format tests still pass
+- [x] Cover, document control, classification, disclaimer
+- [x] Scope in/out, rules of engagement, methodology phases
+- [x] Risk rating, finding register, severity-grouped technical write-ups
+- [x] Evidence, OWASP/CWE, attack scenarios, remediation, appendices
+- [x] Tests and documentation
 
 ## Review
 
-Terminal output now matches the scan console vocabulary: cyan section headers, gray rules,
-padded severity labels, and aligned `check` / `resource` / `evidence` fields. Findings are
-grouped `SEVERITY · Category (n)`. JSON/HTML/Markdown writers were not changed.
+Exploitation was not added. Reproduction steps remain GET-only observation. CVE matches stay
+potential. The EXPLOITABLE mark remains listing emphasis.

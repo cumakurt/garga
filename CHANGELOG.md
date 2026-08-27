@@ -10,17 +10,19 @@ All notable changes to garga are documented in this file.
   normalization, 37 version-aware health checkers, weighted root-cause scoring, correlation,
   partial-failure coverage, scanner telemetry, terminal/JSON/HTML/Markdown reports, configurable
   profiles and thresholds, optional deep collection, and secret-free baseline/delta snapshots.
-- Every completed health assessment writes a timestamped, owner-only standalone HTML artifact in
-  the current directory. The responsive light-theme report embeds `garga.png` and provides an
-  executive dashboard, detailed evidence, correlations, remediation, coverage, and telemetry.
-- Every completed `garga scan` writes a timestamped, owner-only standalone HTML artifact
-  (`garga-scan-*.html`) in the current directory, using the same light theme as health. The
-  report includes an executive summary and per-finding cause, impact, cost if ignored,
-  remediation, residual risk, and a visual observed-evidence panel for every finding.
-  Stdout `--format` is unchanged except that `--format html` evidence cells include the same
-  observed proof lines. Console scan output always prints evidence for each finding.
+- Every completed health assessment writes a timestamped, owner-only standalone PDF artifact
+  (`garga-health-*.pdf`) in the current directory. The report covers executive summary, detailed
+  evidence, correlations, remediation, coverage, and telemetry. `--html-report` (or
+  `output.html_report` / `GARGA_OUTPUT_HTML_REPORT`) also writes the matching HTML document.
+- Every completed `garga scan` writes a timestamped, owner-only standalone PDF artifact
+  (`garga-scan-*.pdf`) in the current directory. The artifact is a penetration-test report
+  structured to PTES, NIST SP 800-115, OWASP, and CREST (document control, disclaimer, scope,
+  methodology, risk rating, technical findings with evidence, attack scenarios, remediation,
+  and appendices). `--html-report` also writes the matching HTML report. Stdout `--format` is
+  unchanged except that `--format html` evidence cells include observed proof lines. Console
+  scan output always prints evidence for each finding.
 - Standalone health and scan HTML reports include clickable developer LinkedIn and GitHub
-  links in the footer.
+  links in the footer. PDF artifacts include the same identity as plain-text URLs.
 
 - Cross-platform release archives, SHA-256 checksums, SPDX SBOMs, and an optional GPG signature
   of `SHA256SUMS`.

@@ -36,6 +36,7 @@ type Options struct {
 	Notice           io.Writer
 	Progress         io.Writer
 	NoProgress       bool
+	PDFArtifact      bool
 	HTMLArtifact     bool
 }
 
@@ -57,7 +58,7 @@ func Scan(ctx context.Context, options Options) (Result, error) {
 		}
 		return Result{}, err
 	}
-	options.HTMLArtifact = true
+	options.PDFArtifact = true
 	return assess(ctx, options, registry, "scan requires at least one target")
 }
 
@@ -134,9 +135,12 @@ func assess(ctx context.Context, options Options, registry *checks.Registry, emp
 	if options.Notice != nil && format != report.FormatConsole {
 		writer = report.WithNotice(writer, options.Notice)
 	}
-	var artifact *report.HTMLArtifactWriter
-	if options.HTMLArtifact {
-		artifact = report.WithHTMLArtifact(writer, options.Notice, options.UserAgent)
+	var artifact *report.ArtifactWriter
+	if options.PDFArtifact || options.HTMLArtifact {
+		artifact = report.WithArtifacts(writer, options.Notice, options.UserAgent, report.ArtifactOptions{
+			PDF:  options.PDFArtifact,
+			HTML: options.HTMLArtifact,
+		})
 		writer = artifact
 	}
 	started := time.Now()

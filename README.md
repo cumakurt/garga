@@ -185,17 +185,19 @@ garga scan --file - < targets.txt
 ```
 
 Useful flags: `--file`, `--format` (`console`, `json`, `jsonl`, `csv`, `html`), `--config`,
-`--signatures`, `--no-signatures`, `--no-progress`, `--insecure`, `--concurrency`, `--rate`,
-`--per-host-rate`, `--max-targets`.
+`--signatures`, `--no-signatures`, `--no-progress`, `--html-report`, `--insecure`, `--concurrency`,
+`--rate`, `--per-host-rate`, `--max-targets`.
 
 On a terminal, large or slow scans draw a live progress bar on stderr (counters only; no hosts).
 `--no-progress` disables it. Findings stay on stdout. Console listings always include visual
 evidence for every finding (`code — summary`, plus observed target, transport, and product
 facts). Regardless of `--format`, every completed scan also writes a timestamped, owner-only
-HTML report (`garga-scan-*.html`) to the current directory and prints its path on stderr. The
-document uses the same light theme as `garga health` and includes an executive summary plus
-detailed cause, impact, cost, remediation, and an always-visible observed-evidence panel for
-each finding. `--format html` stdout tables include the same evidence lines.
+PDF report (`garga-scan-*.pdf`) to the current directory and prints its path on stderr. The
+document is a penetration-test report (PTES / NIST SP 800-115 / OWASP / CREST structure). It
+includes document control, scope, methodology, risk rating, technical findings with evidence,
+attack scenarios, remediation, and appendices. Pass `--html-report` (or set `output.html_report`
+/ `GARGA_OUTPUT_HTML_REPORT`) to also write the matching HTML report. `--format html` stdout
+tables include the same evidence lines.
 
 CSV, JSON, JSONL, and HTML write machine output to stdout and a human detection summary to
 stderr. Console already prints that summary on stdout.
@@ -237,9 +239,10 @@ plain HTTP is refused unless `--allow-plaintext-auth` is explicitly supplied, an
 is reported as critical. Output formats are `terminal`, `json`, `html`, and `markdown`.
 Terminal output is colorized on a TTY, grouped by severity then category, and aligned like
 `garga scan` console reports (`NO_COLOR` disables color). Regardless of the selected stdout
-format, every completed assessment also writes a timestamped, standalone HTML report to the
-current directory and prints its path on stderr. The light-theme report embeds `garga.png` and
-includes executive, technical, remediation, coverage, and telemetry sections.
+format, every completed assessment also writes a timestamped, standalone PDF report
+(`garga-health-*.pdf`) to the current directory and prints its path on stderr. Pass
+`--html-report` to also write the matching HTML report. The HTML document embeds `garga.png`
+and includes executive, technical, remediation, coverage, and telemetry sections.
 
 Details: [docs/health.md](docs/health.md).
 

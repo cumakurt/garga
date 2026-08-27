@@ -75,15 +75,35 @@ func TestWriteTimestampedScanHTMLCreatesPrivateStandaloneArtifact(t *testing.T) 
 	for _, expected := range []string{
 		"data:image/png;base64,",
 		"garga logo",
-		"Executive Summary",
-		"Detailed Findings",
-		"Why this appeared",
-		"Operational and business impact",
-		"What it costs if ignored",
-		"How to fix it",
-		"Prioritized Action Plan",
-		"Affected Targets",
-		"Security Intelligence Report",
+		"Executive summary",
+		"Document control",
+		"Disclaimer, authorization, and confidentiality",
+		"Engagement overview",
+		"Rules of engagement",
+		"Methodology",
+		"Risk rating methodology",
+		"Summary of findings",
+		"Key findings for management",
+		"Technical findings",
+		"Attack scenarios",
+		"Remediation roadmap",
+		"Positive observations",
+		"Coverage, limitations, and residual testing gaps",
+		"Appendix A — Asset inventory",
+		"Appendix B — CVE catalog",
+		"Appendix C — Glossary",
+		"Penetration Test Report",
+		"Confidential",
+		"PTES",
+		"NIST SP 800-115",
+		"OWASP",
+		"CREST",
+		"F-001",
+		"Vulnerability description",
+		"Technical details",
+		"Business impact if ignored",
+		"Recommendation",
+		"Evidence / proof of observation",
 		"--blue:#075985",
 		"full-compromise class",
 		"CVE-2014-3120",
@@ -96,7 +116,6 @@ func TestWriteTimestampedScanHTMLCreatesPrivateStandaloneArtifact(t *testing.T) 
 		`class="score CRITICAL"`,
 		`class="status-cell CRITICAL"`,
 		"Risk score",
-		"Observed evidence",
 		`class="evidence-card"`,
 		`class="evidence-code"`,
 		"scheme_http",
@@ -105,6 +124,9 @@ func TestWriteTimestampedScanHTMLCreatesPrivateStandaloneArtifact(t *testing.T) 
 		"advisory_cve-2014-3120",
 		"cvss_score",
 		"The finding was produced for",
+		"OWASP A07:2021",
+		"CWE-306",
+		"GARGA-PT-",
 	} {
 		if !strings.Contains(htmlReport, expected) {
 			t.Errorf("artifact missing %q", expected)
@@ -119,8 +141,8 @@ func TestWriteTimestampedScanHTMLCreatesPrivateStandaloneArtifact(t *testing.T) 
 	if strings.Contains(strings.ToLower(htmlReport), "<script") {
 		t.Fatal("HTML contains a script tag")
 	}
-	if got := strings.Count(htmlReport, "Observed evidence"); got != 3 {
-		t.Fatalf("Observed evidence panels = %d, want 3", got)
+	if got := strings.Count(htmlReport, "Evidence / proof of observation"); got != 3 {
+		t.Fatalf("evidence panels = %d, want 3", got)
 	}
 	wantCards := 0
 	for _, finding := range findings {
@@ -163,6 +185,45 @@ func TestWithHTMLArtifactKeepsPrimaryFormatAndWritesFile(t *testing.T) {
 	}
 }
 
+func TestWithPDFArtifactKeepsPrimaryFormatAndWritesFile(t *testing.T) {
+	t.Chdir(t.TempDir())
+	var stdout bytes.Buffer
+	primary, err := New(FormatJSONL, &stdout)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var notice bytes.Buffer
+	writer := WithArtifacts(primary, &notice, "garga/test", ArtifactOptions{PDF: true})
+	finding := sampleFindings()[0]
+	if err := writer.Write(context.Background(), finding); err != nil {
+		t.Fatal(err)
+	}
+	writer.SetCoverage(ProbeCoverage{Submitted: 1, Succeeded: 1})
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), `"check_id":"garga.tls.not_enabled"`) {
+		t.Fatalf("primary jsonl missing finding: %q", stdout.String())
+	}
+	if !strings.Contains(notice.String(), "PDF scan report written to") {
+		t.Fatalf("notice = %q", notice.String())
+	}
+	matches, err := filepath.Glob("garga-scan-*.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(matches) != 1 {
+		t.Fatalf("artifacts = %v", matches)
+	}
+	payload, err := os.ReadFile(matches[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.HasPrefix(payload, []byte("%PDF")) || !bytes.Contains(payload, []byte("1. Executive summary")) || !bytes.Contains(payload, []byte("1. F-")) || !bytes.Contains(payload, []byte("Field")) {
+		t.Fatalf("PDF artifact is incomplete: %d bytes", len(payload))
+	}
+}
+
 func TestNarrativeExplainsAnonymousAdminCost(t *testing.T) {
 	t.Parallel()
 	finding := model.Finding{
@@ -181,6 +242,31 @@ func TestNarrativeExplainsAnonymousAdminCost(t *testing.T) {
 	}
 	if !strings.Contains(narrative.Cause, "Unauthenticated") {
 		t.Fatalf("cause = %q", narrative.Cause)
+	}
+}
+
+func TestPentestReportGroupsFindingsAndMapsWeaknesses(t *testing.T) {
+	t.Parallel()
+	findings := []scanHTMLFinding{
+		{CheckID: checkAnonymousAccess, Title: "anon", Target: "http://192.0.2.10:9200/", SeverityClass: "CRITICAL", Category: "Authentication and authorization", Confidence: "high", Exploitable: true},
+		{CheckID: "garga.tls.not_enabled", Title: "tls", Target: "http://192.0.2.10:9200/", SeverityClass: "HIGH", Category: "Transport security", Confidence: "high"},
+		{CheckID: "garga.vuln.cve-2014-3120", Title: "rce", Target: "http://192.0.2.10:9200/", SeverityClass: "HIGH", Category: "Vulnerability", CVE: "CVE-2014-3120", CVSS: "8.1"},
+	}
+	findings = assignReportIDs(findings)
+	if findings[0].ReportID != "F-001" || findings[0].OWASP == "" || findings[0].CWE == "" {
+		t.Fatalf("enrichment = %#v", findings[0])
+	}
+	groups := groupFindingsBySeverity(findings)
+	if len(groups) != 2 || groups[0].Class != "CRITICAL" || groups[1].Class != "HIGH" {
+		t.Fatalf("groups = %#v", groups)
+	}
+	scenarios := deriveAttackScenarios(findings)
+	if len(scenarios) == 0 {
+		t.Fatal("expected an attack scenario from anonymous plus missing TLS")
+	}
+	cves := pentestCVEAppendix(findings)
+	if len(cves) != 1 || cves[0].ID != "CVE-2014-3120" {
+		t.Fatalf("cves = %#v", cves)
 	}
 }
 

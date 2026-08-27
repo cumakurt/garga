@@ -153,7 +153,8 @@ type daysThresholdPatch struct {
 }
 
 type outputPatch struct {
-	Format *string `yaml:"format"`
+	Format     *string `yaml:"format"`
+	HTMLReport *bool   `yaml:"html_report"`
 }
 
 type loggingPatch struct {
@@ -243,8 +244,13 @@ func applyFilePatch(cfg *Config, patch filePatch) error {
 			return err
 		}
 	}
-	if patch.Output != nil && patch.Output.Format != nil {
-		cfg.Output.Format = parseOutputFormat(*patch.Output.Format)
+	if patch.Output != nil {
+		if patch.Output.Format != nil {
+			cfg.Output.Format = parseOutputFormat(*patch.Output.Format)
+		}
+		if patch.Output.HTMLReport != nil {
+			cfg.Output.HTMLReport = *patch.Output.HTMLReport
+		}
 	}
 	if patch.Logging != nil && patch.Logging.Level != nil {
 		cfg.Logging.Level = parseLogLevel(*patch.Logging.Level)
@@ -483,6 +489,14 @@ func (loader *Loader) applyEnvironment(cfg *Config) error {
 			cfg.Output.Format = parseOutputFormat(value)
 			return nil
 		}},
+		{"GARGA_OUTPUT_HTML_REPORT", func(value string) error {
+			parsed, err := strconv.ParseBool(strings.TrimSpace(value))
+			if err != nil {
+				return invalidEnvironment("GARGA_OUTPUT_HTML_REPORT", "must be a boolean")
+			}
+			cfg.Output.HTMLReport = parsed
+			return nil
+		}},
 		{"GARGA_LOG_LEVEL", func(value string) error {
 			cfg.Logging.Level = parseLogLevel(value)
 			return nil
@@ -579,6 +593,9 @@ func applyOverrides(cfg *Config, overrides Overrides) {
 	}
 	if overrides.OutputFormat != nil {
 		cfg.Output.Format = parseOutputFormat(string(*overrides.OutputFormat))
+	}
+	if overrides.HTMLReport != nil {
+		cfg.Output.HTMLReport = *overrides.HTMLReport
 	}
 	if overrides.LogLevel != nil {
 		cfg.Logging.Level = parseLogLevel(string(*overrides.LogLevel))

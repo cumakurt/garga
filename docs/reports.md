@@ -55,10 +55,12 @@ When the selected format is not `console`, `garga scan`, `garga vuln`, and `garg
 print a grouped human summary of the same findings on stderr so operators can see detected
 conditions without opening the machine file.
 
-`garga scan` additionally writes a timestamped standalone HTML assessment (`garga-scan-*.html`)
+`garga scan` additionally writes a timestamped standalone PDF assessment (`garga-scan-*.pdf`)
 to the current directory. That artifact is not the streaming `--format html` table: it is a
-health-themed report with an executive summary and per-finding cause, impact, cost,
-remediation, and a visual **Observed evidence** panel that is always rendered for every finding
-(native check evidence plus observed target, transport, and product facts). Machine stdout
-writers still do not retain the complete scan. JSON, JSONL, and CSV keep the finding schema
-`evidence` field as emitted by checks; they do not invent extra codes.
+penetration-test report (PTES, NIST SP 800-115, OWASP, CREST): document control, disclaimer,
+executive summary, scope, rules of engagement, methodology, risk rating, technical findings
+with evidence, attack scenarios, remediation, and appendices. Pass `--html-report` to also
+write `garga-scan-*.html`. `garga health` writes `garga-health-*.pdf` the same way, with
+optional HTML via the same flag. Machine stdout writers still do not retain the complete scan.
+JSON, JSONL, and CSV keep the finding schema `evidence` field as emitted by checks; they do
+not invent extra codes.

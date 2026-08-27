@@ -64,6 +64,8 @@ health:
 
 output:
   format: console
+  # Also write timestamped HTML CWD reports for scan and health. PDF is always written.
+  html_report: false
 
 logging:
   level: warn

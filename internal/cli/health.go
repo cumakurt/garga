@@ -38,6 +38,10 @@ or --bearer-token-stdin. ESHEALTH_USERNAME, ESHEALTH_PASSWORD, ESHEALTH_API_KEY,
 and ESHEALTH_BEARER_TOKEN are supported for automation but are less private than stdin.
 Credentials are never written to logs or reports. Sending credentials over HTTP is
 refused unless --allow-plaintext-auth is explicitly set.
+
+Every completed assessment writes a timestamped standalone PDF report to the
+current directory and prints its path on stderr. Pass --html-report to also
+write the HTML health report.
 `),
 		Args:          cobra.ExactArgs(1),
 		SilenceUsage:  true,
@@ -50,6 +54,7 @@ refused unless --allow-plaintext-auth is explicitly set.
 			options.topNSet = cmd.Flags().Changed("top-n")
 			options.maxResponseBytesSet = cmd.Flags().Changed("max-response-bytes")
 			options.requestTimeoutSet = cmd.Flags().Changed("request-timeout")
+			options.htmlReportSet = cmd.Flags().Changed("html-report")
 			return runHealth(cmd, buildInfo, options)
 		},
 	}
@@ -74,18 +79,20 @@ refused unless --allow-plaintext-auth is explicitly set.
 	cmd.Flags().BoolVar(&options.allowPlaintextAuth, "allow-plaintext-auth", false, "allow credentials over HTTP (unsafe; reported as CRITICAL)")
 	cmd.Flags().BoolVar(&options.insecure, "insecure", false, "skip TLS certificate verification")
 	cmd.Flags().BoolVar(&options.debug, "debug", false, "enable redacted structured debug logs on stderr")
+	cmd.Flags().BoolVar(&options.htmlReport, "html-report", false, "also write the timestamped HTML health report")
 	return cmd
 }
 
 type healthCLIOptions struct {
-	target, configPath, profile, format, failOn, baselinePath, snapshotOut, username     string
-	deep, overwriteSnapshot, passwordStdin, apiKeyStdin, bearerStdin                     bool
-	allowPlaintextAuth, insecure, debug                                                  bool
-	timeout, requestTimeout                                                              time.Duration
-	concurrency, topN                                                                    int
-	maxResponseBytes                                                                     int64
-	rate                                                                                 float64
-	profileSet, concurrencySet, rateSet, topNSet, maxResponseBytesSet, requestTimeoutSet bool
+	target, configPath, profile, format, failOn, baselinePath, snapshotOut, username                    string
+	deep, overwriteSnapshot, passwordStdin, apiKeyStdin, bearerStdin                                    bool
+	allowPlaintextAuth, insecure, debug                                                                 bool
+	timeout, requestTimeout                                                                             time.Duration
+	concurrency, topN                                                                                   int
+	maxResponseBytes                                                                                    int64
+	rate                                                                                                float64
+	profileSet, concurrencySet, rateSet, topNSet, maxResponseBytesSet, requestTimeoutSet, htmlReportSet bool
+	htmlReport                                                                                          bool
 }
 
 func runHealth(cmd *cobra.Command, buildInfo BuildInfo, options healthCLIOptions) error {
@@ -141,6 +148,9 @@ func runHealth(cmd *cobra.Command, buildInfo BuildInfo, options healthCLIOptions
 		level := config.LogDebug
 		overrides.LogLevel = &level
 	}
+	if options.htmlReportSet {
+		overrides.HTMLReport = &options.htmlReport
+	}
 	cfg, err := config.Load(config.Options{ConfigPath: options.configPath, Overrides: overrides})
 	if err != nil {
 		return healthInputError("invalid health configuration", err)
@@ -177,15 +187,24 @@ func runHealth(cmd *cobra.Command, buildInfo BuildInfo, options healthCLIOptions
 			return &executionError{exitCode: ExitInternalError, message: "save health baseline failed", cause: err}
 		}
 	}
-	artifactPath, err := healthreport.WriteTimestampedHTML(result.Report)
+	artifactPath, err := healthreport.WriteTimestampedPDF(result.Report)
 	if err != nil {
-		return &executionError{exitCode: ExitInternalError, message: "write timestamped health HTML report", cause: err}
+		return &executionError{exitCode: ExitInternalError, message: "write timestamped health PDF report", cause: err}
 	}
 	if err := healthreport.Write(cmd.OutOrStdout(), format, result.Report); err != nil {
 		return &executionError{exitCode: ExitInternalError, message: "write health report", cause: err}
 	}
-	if _, err := fmt.Fprintf(cmd.ErrOrStderr(), "garga: HTML health report written to %s\n", artifactPath); err != nil {
+	if _, err := fmt.Fprintf(cmd.ErrOrStderr(), "garga: PDF health report written to %s\n", artifactPath); err != nil {
 		return &executionError{exitCode: ExitInternalError, message: "write health report notice", cause: err}
+	}
+	if cfg.Output.HTMLReport {
+		htmlPath, htmlErr := healthreport.WriteTimestampedHTML(result.Report)
+		if htmlErr != nil {
+			return &executionError{exitCode: ExitInternalError, message: "write timestamped health HTML report", cause: htmlErr}
+		}
+		if _, err := fmt.Fprintf(cmd.ErrOrStderr(), "garga: HTML health report written to %s\n", htmlPath); err != nil {
+			return &executionError{exitCode: ExitInternalError, message: "write health report notice", cause: err}
+		}
 	}
 	if failOn != "" {
 		if code, severity := healthFailureCode(result.Report.Findings, failOn); code != 0 {

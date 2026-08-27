@@ -206,16 +206,18 @@ terminal, `TERM=dumb`, or `NO_COLOR` is set. JSON uses a stable health-report sc
 separate from the scan finding schema. Markdown includes findings, probable root causes, the
 prioritized action plan, collector coverage, telemetry, and methodology. Regardless of that
 stdout format, every completed assessment atomically writes a timestamped
-`garga-health-*.html` artifact to the current directory with owner-only permissions and prints
-its absolute path on stderr. This preserves clean machine output while making a durable HTML
-report available in every mode.
+`garga-health-*.pdf` artifact to the current directory with owner-only permissions and prints
+its absolute path on stderr. This preserves clean machine output while making a durable PDF
+report available in every mode. Pass `--html-report` (or `output.html_report` /
+`GARGA_OUTPUT_HTML_REPORT`) to also write `garga-health-*.html`.
 
-HTML is a responsive, print-friendly light-theme document. It embeds the repository `garga.png`
-logo and all styling, contains no scripts or external network resources, and escapes report data.
-Its sections include an executive dashboard, severity summary, top risks, independent node/index
-resource rankings, evidence-rich findings, probable root causes, prioritized remediation,
-collector-by-collector coverage, scanner telemetry, and methodology. The artifact is complete
-enough to be reviewed independently of terminal output.
+The optional HTML report is a responsive, print-friendly light-theme document. It embeds the
+repository `garga.png` logo and all styling, contains no scripts or external network resources,
+and escapes report data. Its sections include an executive dashboard, severity summary, top
+risks, independent node/index resource rankings, evidence-rich findings, probable root causes,
+prioritized remediation, collector-by-collector coverage, scanner telemetry, and methodology.
+The PDF artifact covers the same sections and is complete enough to be reviewed independently
+of terminal output.
 
 By default, findings are reported without failing the process. `--fail-on warning`,
 `--fail-on high`, or `--fail-on critical` enables automation thresholds. Health uses dedicated

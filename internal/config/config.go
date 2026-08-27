@@ -140,6 +140,8 @@ type DaysThreshold struct {
 
 type OutputConfig struct {
 	Format OutputFormat
+	// HTMLReport also writes the timestamped HTML CWD artifact. PDF is always written.
+	HTMLReport bool
 }
 
 type LoggingConfig struct {
@@ -163,6 +165,7 @@ type Overrides struct {
 	HealthTopN             *int
 	HealthMaxResponseBytes *int64
 	OutputFormat           *OutputFormat
+	HTMLReport             *bool
 	LogLevel               *LogLevel
 }
 
@@ -232,7 +235,7 @@ func (cfg Config) String() string {
 	}
 
 	return fmt.Sprintf(
-		"scanner.concurrency=%d scanner.requests_per_second=%g scanner.per_host_requests_per_second=%g scanner.connect_timeout=%s scanner.request_timeout=%s scanner.retries=%d scanner.max_response_bytes=%d fingerprint.threshold=%d health.profile=%s health.concurrency=%d health.requests_per_second=%g health.top_n=%d health.max_response_bytes=%d output.format=%s logging.level=%s",
+		"scanner.concurrency=%d scanner.requests_per_second=%g scanner.per_host_requests_per_second=%g scanner.connect_timeout=%s scanner.request_timeout=%s scanner.retries=%d scanner.max_response_bytes=%d fingerprint.threshold=%d health.profile=%s health.concurrency=%d health.requests_per_second=%g health.top_n=%d health.max_response_bytes=%d output.format=%s output.html_report=%t logging.level=%s",
 		cfg.Scanner.Concurrency,
 		cfg.Scanner.RequestsPerSecond,
 		cfg.Scanner.PerHostRate,
@@ -247,6 +250,7 @@ func (cfg Config) String() string {
 		cfg.Health.TopN,
 		cfg.Health.MaxResponseBytes,
 		outputFormat,
+		cfg.Output.HTMLReport,
 		logLevel,
 	)
 }

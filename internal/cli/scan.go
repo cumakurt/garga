@@ -25,6 +25,7 @@ func newScanCommand(buildInfo BuildInfo) *cobra.Command {
 		perHostRate  float64
 		maxTargets   int
 		noProgress   bool
+		htmlReport   bool
 	)
 
 	cmd := &cobra.Command{
@@ -44,9 +45,9 @@ confirmed exploitation.
 
 On a terminal, long or large scans draw a live progress bar on stderr.
 Use --no-progress to disable it. Findings stay on stdout. Every completed
-scan also writes a timestamped standalone HTML report to the current
-directory, using the same theme as garga health, and prints its path on
-stderr.
+scan writes a timestamped standalone PDF report to the current directory
+and prints its path on stderr. Pass --html-report to also write the HTML
+penetration-test report.
 
 Supply targets as arguments, a --file of line-oriented hosts/CIDRs/URLs,
 or both. --file - reads targets from stdin. --insecure skips TLS
@@ -69,6 +70,9 @@ certificate verification only.
 			if cmd.Flags().Changed("format") {
 				value := config.OutputFormat(format)
 				overrides.OutputFormat = &value
+			}
+			if cmd.Flags().Changed("html-report") {
+				overrides.HTMLReport = &htmlReport
 			}
 			return runScan(cmd, buildInfo, scanOptions{
 				targets:        args,
@@ -96,6 +100,7 @@ certificate verification only.
 	cmd.Flags().Float64Var(&perHostRate, "per-host-rate", config.DefaultPerHostRate, "per-host requests per second")
 	cmd.Flags().IntVar(&maxTargets, "max-targets", app.DefaultMaxUniqueTargets, "maximum unique targets after exact deduplication")
 	cmd.Flags().BoolVar(&noProgress, "no-progress", false, "disable the live progress bar")
+	cmd.Flags().BoolVar(&htmlReport, "html-report", false, "also write the timestamped HTML penetration-test report")
 	return cmd
 }
 
@@ -163,6 +168,7 @@ func runScan(cmd *cobra.Command, buildInfo BuildInfo, options scanOptions) error
 		Notice:           cmd.ErrOrStderr(),
 		Progress:         cmd.ErrOrStderr(),
 		NoProgress:       options.noProgress,
+		HTMLArtifact:     cfg.Output.HTMLReport,
 	})
 	if err != nil {
 		return classifyAppError(err, "scan failed")

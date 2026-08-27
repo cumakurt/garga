@@ -128,6 +128,39 @@ func TestWriteTimestampedHTMLCreatesPrivateStandaloneArtifact(t *testing.T) {
 	}
 }
 
+func TestWriteTimestampedPDFCreatesPrivateStandaloneArtifact(t *testing.T) {
+	t.Chdir(t.TempDir())
+	path, err := WriteTimestampedPDF(fixtureReport())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Dir(path) != mustWorkingDirectory(t) || !strings.HasPrefix(filepath.Base(path), "garga-health-20260827T120000.000Z-") || !strings.HasSuffix(path, ".pdf") {
+		t.Fatalf("artifact path = %q", path)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("artifact permissions = %o", info.Mode().Perm())
+	}
+	payload, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.HasPrefix(payload, []byte("%PDF")) {
+		t.Fatal("artifact is not a PDF")
+	}
+	for _, expected := range []string{"Elasticsearch Health Check and Assessment", "Top risks", "Detailed findings", "1. ES-DISK-001", "Field", "Prioritized action plan", "https://www.linkedin.com/in/cuma-kurt-34414917/", "https://github.com/cumakurt", "Cuma Kurt"} {
+		if !bytes.Contains(payload, []byte(expected)) {
+			t.Fatalf("artifact does not contain %q", expected)
+		}
+	}
+	if bytes.Contains(payload, []byte("credential-canary")) || bytes.Contains(payload, []byte("Basic abc")) {
+		t.Fatal("PDF artifact leaked sensitive evidence")
+	}
+}
+
 func mustWorkingDirectory(t *testing.T) string {
 	t.Helper()
 	directory, err := os.Getwd()

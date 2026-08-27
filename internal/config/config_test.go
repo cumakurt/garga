@@ -58,7 +58,7 @@ func TestConfigStringIsDeterministicAndSecretSafe(t *testing.T) {
 	if strings.Contains(got, canary) {
 		t.Fatalf("formatted configuration exposed canary: %q", got)
 	}
-	if !strings.Contains(got, "health.profile=<invalid>") || !strings.Contains(got, "output.format=<invalid> logging.level=<invalid>") {
+	if !strings.Contains(got, "health.profile=<invalid>") || !strings.Contains(got, "output.format=<invalid> output.html_report=false logging.level=<invalid>") {
 		t.Fatalf("formatted configuration did not sanitize invalid enum values: %q", got)
 	}
 }

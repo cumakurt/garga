@@ -37,8 +37,8 @@ and keeps TLS/exposure checks. Scan does not fetch or activate signed update bun
 5. Stream findings to the selected reporter. Console and HTML emphasize exploitable findings.
    CSV, JSON, JSONL, and HTML also print a human detection summary on stderr. The complete
    scan is not retained in machine writers. Independently of `--format`, a detailed timestamped
-   HTML artifact is written to the current directory when the scan has submitted probes or
-   produced findings.
+   PDF artifact (`garga-scan-*.pdf`) is written to the current directory when the scan has
+   submitted probes or produced findings. `--html-report` also writes the HTML artifact.
 
 Orchestration lives in `internal/app`. The scanner engine remains product-neutral. Credential
 verification and credential audit are not on this path.
@@ -57,13 +57,16 @@ On a terminal, `garga scan` draws a live progress bar on stderr while probes are
 hosts or URLs. It stays hidden for a fast single-target run. `--no-progress` disables it.
 Piped stderr (CI, files) does not show the bar. Findings remain on stdout.
 
-Every completed scan also writes `garga-scan-<timestamp>-<id>.html` in the working directory
-(mode `0600`) and prints the absolute path on stderr. The artifact uses the same standalone
-light theme as `garga health`: executive summary, top risks, affected targets, detailed
-findings (cause, impact, cost if ignored, fix, residual risk, and visual observed evidence),
-a prioritized action plan, and coverage. Console scan output and both HTML surfaces always
-show evidence for every finding. `--format html` on stdout remains the compact streaming
-table for automation; the CWD file is the operator-facing assessment.
+Every completed scan also writes `garga-scan-<timestamp>-<id>.pdf` in the working directory
+(mode `0600`) and prints the absolute path on stderr. The artifact is a penetration-test report
+structured to PTES, NIST SP 800-115, OWASP, and CREST: document control, disclaimer, executive
+summary, engagement overview, in/out of scope, rules of engagement, methodology, risk rating,
+summary and technical findings (grouped by severity, with OWASP/CWE, evidence, and residual
+risk), attack scenarios, remediation roadmap, positive observations, coverage limitations,
+and appendices (assets, CVEs, glossary). Console scan output always shows evidence for every
+finding. `--format html` on stdout remains the compact streaming table for automation; the CWD
+PDF is the operator-facing assessment. Pass `--html-report` (or `output.html_report` /
+`GARGA_OUTPUT_HTML_REPORT`) to also write `garga-scan-*.html` with the same content.
 
 | Code | Meaning |
 |---:|---|
@@ -83,6 +86,7 @@ These flags bind to the typed override layer and outrank environment variables a
 | `--rate` | `scanner.requests_per_second` |
 | `--per-host-rate` | `scanner.per_host_requests_per_second` |
 | `--format` | `output.format` |
+| `--html-report` | `output.html_report` |
 | `--config` | explicit YAML path |
 
 Timeouts, retries, response limits, fingerprint threshold, and log level remain file or

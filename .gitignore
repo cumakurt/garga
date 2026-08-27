@@ -6,4 +6,6 @@
 *.test
 AGENTS.md
 /garga-health-*.html
+/garga-health-*.pdf
 /garga-scan-*.html
+/garga-scan-*.pdf

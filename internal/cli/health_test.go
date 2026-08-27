@@ -55,18 +55,38 @@ func TestHealthCommandWritesStableJSONAndUsesGETOnly(t *testing.T) {
 	if document.SchemaVersion != "1.0" || document.Metadata.APIRequests == 0 || document.Summary.HealthScore >= 100 {
 		t.Fatalf("health document = %#v", document)
 	}
-	artifacts, err := filepath.Glob(filepath.Join(reportDirectory, "garga-health-*.html"))
+	artifacts, err := filepath.Glob(filepath.Join(reportDirectory, "garga-health-*.pdf"))
 	if err != nil || len(artifacts) != 1 {
-		t.Fatalf("timestamped HTML artifacts = %v, error = %v", artifacts, err)
+		t.Fatalf("timestamped PDF artifacts = %v, error = %v", artifacts, err)
+	}
+	htmlArtifacts, err := filepath.Glob(filepath.Join(reportDirectory, "garga-health-*.html"))
+	if err != nil || len(htmlArtifacts) != 0 {
+		t.Fatalf("default health wrote HTML artifacts = %v, error = %v", htmlArtifacts, err)
+	}
+	info, err := os.Stat(artifacts[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("artifact permissions = %o", info.Mode().Perm())
 	}
 	artifact, err := os.ReadFile(artifacts[0])
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"garga logo", "Executive Summary", "Detailed Findings", "Assessment Coverage", "https://www.linkedin.com/in/cuma-kurt-34414917/", "https://github.com/cumakurt"} {
+	if !bytes.HasPrefix(artifact, []byte("%PDF")) {
+		t.Fatal("health artifact is not a PDF")
+	}
+	for _, expected := range []string{"Elasticsearch Health Check and Assessment", "Top risks", "Prioritized action plan", "Field", "https://www.linkedin.com/in/cuma-kurt-34414917/", "https://github.com/cumakurt"} {
 		if !bytes.Contains(artifact, []byte(expected)) {
-			t.Fatalf("HTML artifact does not contain %q", expected)
+			t.Fatalf("PDF artifact does not contain %q", expected)
 		}
+	}
+	if bytes.Contains(artifact, []byte("credential-canary")) {
+		t.Fatal("PDF artifact leaked sensitive evidence")
+	}
+	if !strings.Contains(stderr.String(), "PDF health report written to") {
+		t.Fatalf("stderr missing PDF notice: %q", stderr.String())
 	}
 	mu.Lock()
 	defer mu.Unlock()
@@ -74,6 +94,35 @@ func TestHealthCommandWritesStableJSONAndUsesGETOnly(t *testing.T) {
 		if method != http.MethodGet {
 			t.Fatalf("%s used %s", path, method)
 		}
+	}
+}
+
+func TestHealthHtmlReportFlagWritesHTMLAlongsidePDF(t *testing.T) {
+	reportDirectory := t.TempDir()
+	t.Chdir(reportDirectory)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		status, payload := healthCLIResponse(request.URL.Path)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(status)
+		_, _ = io.WriteString(writer, payload)
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	exitCode := Execute(context.Background(), []string{"health", server.URL, "--format", "json", "--html-report", "--requests-per-second", "100"}, BuildInfo{Version: "test"}, strings.NewReader(""), &stdout, &stderr)
+	if exitCode != ExitSuccess {
+		t.Fatalf("Execute() exit = %d, stderr = %q", exitCode, stderr.String())
+	}
+	pdfs, err := filepath.Glob(filepath.Join(reportDirectory, "garga-health-*.pdf"))
+	if err != nil || len(pdfs) != 1 {
+		t.Fatalf("PDF artifacts = %v, error = %v", pdfs, err)
+	}
+	htmls, err := filepath.Glob(filepath.Join(reportDirectory, "garga-health-*.html"))
+	if err != nil || len(htmls) != 1 {
+		t.Fatalf("HTML artifacts = %v, error = %v", htmls, err)
+	}
+	if !strings.Contains(stderr.String(), "PDF health report written to") || !strings.Contains(stderr.String(), "HTML health report written to") {
+		t.Fatalf("stderr missing dual notices: %q", stderr.String())
 	}
 }
 
@@ -118,7 +167,7 @@ func TestHealthHelpDocumentsSafetyAndFlags(t *testing.T) {
 		t.Fatalf("exit code = %d; stderr = %q", exitCode, stderr.String())
 	}
 	help := stdout.String()
-	for _, needle := range []string{"--profile", "--deep", "--format", "--fail-on", "--baseline", "--snapshot-out", "--password-stdin", "--api-key-stdin", "--bearer-token-stdin", "--allow-plaintext-auth", "--max-response-bytes", "GET", "10/11/12"} {
+	for _, needle := range []string{"--profile", "--deep", "--format", "--fail-on", "--baseline", "--snapshot-out", "--password-stdin", "--api-key-stdin", "--bearer-token-stdin", "--allow-plaintext-auth", "--max-response-bytes", "--html-report", "GET", "10/11/12", "PDF"} {
 		if !strings.Contains(help, needle) {
 			t.Errorf("help missing %q", needle)
 		}

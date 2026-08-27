@@ -78,6 +78,32 @@ logging:
 	}
 }
 
+func TestLoaderAppliesHTMLReport(t *testing.T) {
+	t.Parallel()
+
+	path := writeConfig(t, `
+output:
+  html_report: true
+`)
+	got, err := NewLoader(mapLookup(map[string]string{"GARGA_OUTPUT_HTML_REPORT": "false"})).Load(Options{
+		ConfigPath: path,
+		Overrides:  Overrides{HTMLReport: ptr(true)},
+	})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if !got.Output.HTMLReport {
+		t.Fatal("HTMLReport override was not applied")
+	}
+	fromEnv, err := NewLoader(mapLookup(map[string]string{"GARGA_OUTPUT_HTML_REPORT": "true"})).Load(Options{})
+	if err != nil {
+		t.Fatalf("Load() env error = %v", err)
+	}
+	if !fromEnv.Output.HTMLReport {
+		t.Fatal("GARGA_OUTPUT_HTML_REPORT was not applied")
+	}
+}
+
 func TestLoaderAppliesHealthThresholds(t *testing.T) {
 	t.Parallel()
 
@@ -190,6 +216,7 @@ func TestLoaderRejectsInvalidEnvironmentWithoutExposingValue(t *testing.T) {
 		"GARGA_HEALTH_TOP_N",
 		"GARGA_HEALTH_MAX_RESPONSE_BYTES",
 		"GARGA_OUTPUT_FORMAT",
+		"GARGA_OUTPUT_HTML_REPORT",
 		"GARGA_LOG_LEVEL",
 	}
 
