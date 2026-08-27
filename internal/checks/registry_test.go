@@ -255,20 +255,12 @@ func TestEvaluateIsDeterministic(t *testing.T) {
 func TestActiveSafeContractForbidsStateChangingRequests(t *testing.T) {
 	t.Parallel()
 
-	allowed := map[string]struct{}{
-		"/_cluster/health":         {},
-		"/_cluster/state/version":  {},
-		"/_nodes/_local/http":      {},
-		"/_cat/health":             {},
-		"/_cat/indices":            {},
-		"/_security/_authenticate": {},
-	}
 	for _, check := range DefaultRegistry().Checks() {
 		for _, request := range check.Requests() {
 			if request.Method != http.MethodGet {
 				t.Fatalf("%s method = %q", check.ID(), request.Method)
 			}
-			if _, ok := allowed[request.Path]; !ok {
+			if !capability.IsAllowlistedAPIPath(request.Path) {
 				t.Fatalf("%s path %q is not allowlisted", check.ID(), request.Path)
 			}
 		}

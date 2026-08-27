@@ -1,6 +1,9 @@
 package checks
 
-import "github.com/cumakurt/garga/internal/model"
+import (
+	"github.com/cumakurt/garga/internal/model"
+	"github.com/cumakurt/garga/internal/vulnerability"
+)
 
 // Registry evaluates a fixed, ordered set of checks and deduplicates findings.
 type Registry struct {
@@ -70,4 +73,13 @@ const (
 	errNilCheck         registryError = "create check registry: check is required"
 	errEmptyCheckID     registryError = "create check registry: check ID is required"
 	errDuplicateCheckID registryError = "create check registry: check ID is duplicated"
+	errNoSignatures     registryError = "create signature registry: at least one signature is required"
 )
+
+// SignatureRegistry evaluates only YAML signatures. It does not include TLS or exposure checks.
+func SignatureRegistry(signatures []vulnerability.Signature) (*Registry, error) {
+	if len(signatures) == 0 {
+		return nil, errNoSignatures
+	}
+	return NewRegistry(signatureCheck{signatures: signatures})
+}

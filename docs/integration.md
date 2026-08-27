@@ -58,5 +58,6 @@ with `[redacted]`. Response bodies and cluster identifiers are not dumped.
 ## Isolation
 
 `internal/integration` may import transport, probe, fingerprint, capability, checks, credential,
-config, model, and target. It must not import Cobra, `internal/cli`, the scanner, reporters, or
-the signature updater. There is no `scan` command; these tests exercise packages directly.
+config, model, and target. It must not import Cobra, `internal/cli`, `internal/app`, the scanner,
+reporters, or the signature updater. Live matrix tests exercise packages directly rather than
+spawning `garga scan`.

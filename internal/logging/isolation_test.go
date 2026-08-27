@@ -21,6 +21,7 @@ func TestLoggingPackageIsALeaf(t *testing.T) {
 	forbidden := []string{
 		"github.com/cumakurt/garga/internal/scanner",
 		"github.com/cumakurt/garga/internal/cli",
+		"github.com/cumakurt/garga/internal/app",
 		"github.com/cumakurt/garga/internal/credential",
 		"github.com/cumakurt/garga/internal/fingerprint",
 		"github.com/cumakurt/garga/internal/checks",

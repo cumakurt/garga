@@ -11,10 +11,11 @@ import (
 )
 
 const (
-	ExitSuccess       = 0
-	ExitInternalError = 1
-	ExitInvalidInput  = 2
-	ExitInterrupted   = 130
+	ExitSuccess        = 0
+	ExitInternalError  = 1
+	ExitInvalidInput   = 2
+	ExitPartialFailure = 3
+	ExitInterrupted    = 130
 )
 
 type executionError struct {
@@ -91,11 +92,14 @@ func NewRootCommand(buildInfo BuildInfo) *cobra.Command {
 	}
 	cmd.CompletionOptions.DisableDefaultCmd = true
 	normalized := buildInfo.normalized()
-	cmd.AddCommand(newVersionCommand(normalized))
+	cmd.AddCommand(newScanCommand(normalized))
+	cmd.AddCommand(newFingerprintCommand(normalized))
 	cmd.AddCommand(newAuthCheckCommand(normalized))
 	cmd.AddCommand(newAuthAuditCommand(normalized))
+	cmd.AddCommand(newVulnCommand(normalized))
 	cmd.AddCommand(newReportCommand())
 	cmd.AddCommand(newUpdateCommand(normalized))
+	cmd.AddCommand(newVersionCommand(normalized))
 
 	return cmd
 }

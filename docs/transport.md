@@ -34,6 +34,14 @@ rejected. On a cross-origin redirect, the transport removes `Authorization`,
 `Proxy-Authorization`, `Cookie`, and `Referer` before sending the next request. The configured
 garga user agent is applied to every outgoing request.
 
+## Method safety
+
+The transport sends only `GET` and never attaches a request body. `NewRequest` and `Client.Do`
+reject other methods, an empty method, and a non-nil body as `invalid_request`. Redirects that
+would change the method or attach a body are rejected. Path allowlists for Elasticsearch APIs
+remain in `internal/capability` and `internal/credential`; this layer enforces the HTTP method
+only.
+
 ## Error contract
 
 Transport failures use stable kinds for invalid requests, cancellation, timeout, DNS, TLS,

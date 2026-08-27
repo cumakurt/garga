@@ -2,6 +2,7 @@ package fingerprint
 
 import (
 	"mime"
+	"net/http"
 	"strings"
 
 	"github.com/cumakurt/garga/internal/probe"
@@ -77,7 +78,7 @@ func (engine *Engine) Analyze(response probe.Result) Result {
 	version := root.version != ""
 	buildMetadata := root.buildMetadataFields >= 2
 	clusterIdentity := root.hasName && root.hasClusterName && root.hasClusterUUID
-	authChallenge := (response.StatusCode == 401 || response.StatusCode == 403) && hasElasticAuthChallenge(response.Headers)
+	authChallenge := (response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden) && hasElasticAuthChallenge(response.Headers)
 	warningHeader := hasElasticWarning(response.Headers)
 	jsonContent := hasJSONContentType(response.Headers)
 

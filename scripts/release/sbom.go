@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -99,7 +100,9 @@ func writeSBOM(cfg config) (string, error) {
 }
 
 func listModules(cfg config) ([]goModule, error) {
-	command := exec.Command(cfg.GoBin, "list", "-m", "-json", "all")
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	command := exec.CommandContext(ctx, cfg.GoBin, "list", "-m", "-json", "all")
 	command.Dir = cfg.Root
 	output, err := command.Output()
 	if err != nil {
@@ -139,7 +142,9 @@ func maybeSign(cfg config, sumsPath string) error {
 		fmt.Fprintln(os.Stderr, "release: signing skipped (set GARGA_RELEASE_GPG_KEY to sign SHA256SUMS)")
 		return nil
 	}
-	command := exec.Command("gpg", "--detach-sign", "--armor", "--local-user", keyID, "--output", sumsPath+".asc", sumsPath)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	command := exec.CommandContext(ctx, "gpg", "--detach-sign", "--armor", "--local-user", keyID, "--output", sumsPath+".asc", sumsPath)
 	command.Dir = cfg.Root
 	output, err := command.CombinedOutput()
 	if err != nil {

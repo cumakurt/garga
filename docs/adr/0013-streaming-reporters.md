@@ -23,6 +23,6 @@ schema `1.0` before the first public tag would freeze a pre-release field set.
 
 ## Consequences
 
-A future `scan` command can stream findings into these writers without coupling report encoding
+`garga scan` and `garga vuln` stream findings into these writers without coupling report encoding
 to scheduler internals. The public `1.0` finding schema remains reserved for the first public
 tag, after golden fixtures and release documentation exist.

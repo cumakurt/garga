@@ -2,6 +2,7 @@ package target
 
 import (
 	"context"
+	"errors"
 	"io"
 	"sort"
 	"testing"
@@ -41,7 +42,7 @@ func BenchmarkCIDRSourceNext(b *testing.B) {
 	b.ResetTimer()
 	for b.Loop() {
 		_, err := source.Next(ctx)
-		if err != io.EOF {
+		if !errors.Is(err, io.EOF) {
 			if err != nil {
 				b.Fatal(err)
 			}

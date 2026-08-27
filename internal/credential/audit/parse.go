@@ -3,6 +3,7 @@ package audit
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -60,7 +61,7 @@ func ParseCredentials(reader io.Reader) ([]*credential.Secret, error) {
 	}
 	if err := scanner.Err(); err != nil {
 		destroySecrets(secrets)
-		if err == bufio.ErrTooLong {
+		if errors.Is(err, bufio.ErrTooLong) {
 			return nil, fmt.Errorf("parse credential list: line exceeds %d bytes", maxLineBytes)
 		}
 		return nil, fmt.Errorf("parse credential list: read input")

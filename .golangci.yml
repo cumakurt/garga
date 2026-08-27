@@ -1,0 +1,57 @@
+# golangci-lint v2 configuration. Format checking stays on `make fmt-check` (gofmt).
+version: "2"
+
+run:
+  modules-download-mode: readonly
+  relative-path-mode: gomod
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    - bidichk
+    - bodyclose
+    - durationcheck
+    - errorlint
+    - gocheckcompilerdirectives
+    - gosec
+    - misspell
+    - noctx
+    - sloglint
+    - unconvert
+    - usestdlibvars
+  settings:
+    gosec:
+      excludes:
+        # TLS verification is skipped only when the operator sets --insecure.
+        - G402
+    sloglint:
+      no-mixed-args: true
+      key-naming-case: snake
+      attr-only: true
+  exclusions:
+    generated: strict
+    presets:
+      - comments
+      - std-error-handling
+      - common-false-positives
+    rules:
+      - path: _test\.go
+        linters:
+          - gosec
+          - bodyclose
+          - noctx
+          - errcheck
+      # Release archives must be world-readable; go/gpg are operator-supplied tools.
+      - path: scripts/release/
+        linters:
+          - gosec
+      # Docker-mounted cert directories must be traversable by the container user.
+      - path: internal/integration/certs.go
+        linters:
+          - gosec
+        text: "G302:"
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

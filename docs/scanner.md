@@ -2,6 +2,8 @@
 
 The scanner engine is a product-neutral, bounded pipeline from concrete endpoints to probe
 results. It owns the supplied source and sink for one run and closes both exactly once.
+`garga scan` and `garga vuln` use this engine for root probes and keep fingerprint, check, and
+report logic in `internal/app`.
 
 ## Bounded pipeline
 

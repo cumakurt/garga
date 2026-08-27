@@ -30,9 +30,9 @@ report or test fixture.
 
 ## Operational precautions
 
-- Review `run.sh` before first use because automatic setup may invoke the detected system package
-  manager with administrative privileges. The launcher reports the packages first and never uses
-  a remote shell installer.
+- Review `install.sh` before first use because automatic setup may invoke the detected system
+  package manager with administrative privileges. The installer reports the packages first and
+  never uses a remote shell installer. It does not run garga after copying the binary onto PATH.
 - Start with a small, explicitly authorized target set.
 - Review concurrency, rate, timeout, proxy, and TLS settings before scanning.
 - Treat scan artifacts as sensitive because they may describe exposed services.

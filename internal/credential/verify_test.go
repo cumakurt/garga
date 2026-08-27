@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cumakurt/garga/internal/capability"
 	"github.com/cumakurt/garga/internal/config"
 	"github.com/cumakurt/garga/internal/model"
 	"github.com/cumakurt/garga/internal/transport"
@@ -43,7 +44,7 @@ func TestVerifyOutcomes(t *testing.T) {
 				if request.URL.RawQuery != "" {
 					t.Errorf("query = %q", request.URL.RawQuery)
 				}
-				if !strings.HasSuffix(request.URL.Path, pathAuthenticate) {
+				if !strings.HasSuffix(request.URL.Path, capability.PathAuthenticate) {
 					t.Errorf("path = %q", request.URL.Path)
 				}
 				if !strings.HasPrefix(request.Header.Get("Authorization"), "Basic ") {
@@ -123,11 +124,17 @@ func TestVerifyDoesNotRetryUnauthorized(t *testing.T) {
 
 func TestAuthenticatePathIsOfficialSecurityAPI(t *testing.T) {
 	t.Parallel()
-	if pathAuthenticate != "/_security/_authenticate" {
-		t.Fatalf("pathAuthenticate = %q, want /_security/_authenticate", pathAuthenticate)
+	if capability.PathAuthenticate != "/_security/_authenticate" {
+		t.Fatalf("PathAuthenticate = %q, want /_security/_authenticate", capability.PathAuthenticate)
 	}
-	if strings.Contains(pathAuthenticate, "/user/") {
+	if !capability.IsAllowlistedAPIPath(capability.PathAuthenticate) {
+		t.Fatal("PathAuthenticate is missing from the GET catalog")
+	}
+	if capability.IsAllowlistedAPIPath("/_security/user/_authenticate") {
 		t.Fatal("Get User /_security/user/{username} would 404 for username _authenticate")
+	}
+	if _, err := joinAPIPath("", "/_security/user/_authenticate"); err == nil {
+		t.Fatal("joinAPIPath accepted Get User")
 	}
 }
 
@@ -142,7 +149,7 @@ func TestVerifyRequiresInputs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewBasic() error = %v", err)
 	}
-	if _, err := verifier.Verify(nil, model.Endpoint{}, secret); err == nil {
+	if _, err := verifier.Verify(nil, model.Endpoint{}, secret); err == nil { //nolint:staticcheck // nil context must be rejected
 		t.Fatal("Verify(nil context) succeeded")
 	}
 	if _, err := verifier.Verify(context.Background(), model.Endpoint{}, nil); err == nil {

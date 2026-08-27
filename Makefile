@@ -12,13 +12,29 @@ ifneq ($(RELEASE_COMMIT),)
 RELEASE_FLAGS += -commit $(RELEASE_COMMIT)
 endif
 
-.PHONY: check build fmt fmt-check shell-test test test-race vet bench integration release fuzz-smoke vulncheck
+GOLANGCI_LINT_VERSION ?= v2.13.1
+GOVULNCHECK_VERSION ?= v1.1.4
+PREFIX ?= /usr/local
+DESTDIR ?=
+INSTALL_BINDIR = $(DESTDIR)$(PREFIX)/bin
 
-check: fmt-check shell-test vet test build
+.PHONY: check build install uninstall fmt fmt-check shell-test test test-race vet lint bench integration release fuzz-smoke vulncheck signatures-validate
+
+check: fmt-check shell-test vet test signatures-validate build
 
 build:
 	mkdir -p $(dir $(BINARY))
 	$(GO) build -o $(BINARY) ./cmd/garga
+
+# Rebuilds, then copies the current binary onto PATH. Writing to /usr/local/bin
+# typically requires `sudo make install`.
+install: build
+	mkdir -p "$(INSTALL_BINDIR)"
+	cp "$(BINARY)" "$(INSTALL_BINDIR)/garga"
+	chmod 755 "$(INSTALL_BINDIR)/garga"
+
+uninstall:
+	rm -f "$(INSTALL_BINDIR)/garga"
 
 fmt:
 	gofmt -w $(GO_FILES)
@@ -31,8 +47,8 @@ fmt-check:
 	}
 
 shell-test:
-	bash -n run.sh tests/run_sh_test.sh
-	bash tests/run_sh_test.sh
+	bash -n install.sh tests/install_sh_test.sh
+	bash tests/install_sh_test.sh
 
 test:
 	$(GO) test ./...
@@ -42,6 +58,10 @@ test-race:
 
 vet:
 	$(GO) vet ./...
+
+# Pinned analyzer; not a runtime module. Downloads on first use.
+lint:
+	$(GO) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run ./...
 
 # Microbenchmarks for docs/performance.md. Not part of check: timings are machine-specific.
 BENCH_PACKAGES ?= ./internal/target ./internal/fingerprint ./internal/vulnerability ./internal/report ./internal/scanner
@@ -62,6 +82,13 @@ fuzz-smoke:
 	$(GO) test -fuzz=FuzzParseRange -fuzztime=$(FUZZ_TIME) ./internal/vulnerability
 	$(GO) test -fuzz=FuzzParseSignature -fuzztime=$(FUZZ_TIME) ./internal/vulnerability
 
-# Downloads the vulnerability database. Not part of check.
+# Loads committed YAML fixtures through the same validator as garga scan/vuln --signatures.
+SIGNATURES_DIR ?= internal/vulnerability/testdata/valid
+signatures-validate:
+	$(GO) run ./scripts/validate-signatures $(SIGNATURES_DIR)
+
+# Downloads the vulnerability database. Not part of check. Findings are reported
+# against the compiling toolchain; use Go 1.26.6+ or 1.27.0+ so patched standard
+# library issues are not reported as product findings.
 vulncheck:
-	$(GO) run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+	$(GO) run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...

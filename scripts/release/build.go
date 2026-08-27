@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 func produce(cfg config) error {
@@ -44,7 +46,9 @@ func buildPlatform(cfg config, plat platform, sbomPath string) (string, error) {
 	defer os.RemoveAll(work)
 
 	binaryPath := filepath.Join(work, cfg.binaryName(plat))
-	command := exec.Command(cfg.GoBin, "build",
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	command := exec.CommandContext(ctx, cfg.GoBin, "build",
 		"-trimpath",
 		"-buildvcs=false",
 		"-ldflags", cfg.ldflags(),

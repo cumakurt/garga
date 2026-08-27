@@ -30,8 +30,10 @@ Every result contains these identifiers in this order, including when discovery 
 | `basic_auth` | Derived: a `401`/`403` advertised `Basic realm="security"` |
 | `api_key` | Derived: a `401`/`403` advertised `ApiKey` |
 
-A reverse-proxy base path from the target is preserved. The allowlisted suffixes are appended to
-that prefix; query parameters and fragments are rejected. Root is never requested a second time.
+A reverse-proxy base path from the target is preserved. Allowlisted suffixes come from the extra
+probe catalog (`capability.AllowlistedAPIPaths`); query parameters and fragments are rejected.
+Root is never requested a second time. `GET /_security/user/_authenticate` is Get User and is not
+in the catalog.
 
 ## Availability
 

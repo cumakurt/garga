@@ -1,8 +1,9 @@
 # Target Input Contract
 
 This document describes the target normalization and streaming source behavior implemented by
-Work Packages 1.1 and 1.2. The scanner CLI is not exposed yet, but future commands must preserve
-this contract unless a documented compatibility change replaces it.
+Work Packages 1.1 and 1.2. `garga scan`, `garga fingerprint`, and `garga vuln` consume this
+grammar through arguments and `--file`.
+The contract below applies unless a documented compatibility change replaces it.
 
 ## Single targets
 

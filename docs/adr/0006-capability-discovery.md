@@ -31,6 +31,7 @@ the existing probe and transport boundary.
 ## Consequences
 
 Checks introduced after this decision must consult capability availability before they request an
-API. Adding a new discovery request requires expanding the allowlist and proving the method and
-path are non-state-changing. Version support changes remain in ADR 0005; they do not grant
-capability presence by themselves.
+API. Adding a new discovery request requires expanding the extra-probe catalog; the GET allowlist
+is derived from that catalog. `capability.PathAuthenticate` is the only security path; credential
+verification reuses it. `GET /_security/user/_authenticate` is Get User and must not be added.
+Version support changes remain in ADR 0005; they do not grant capability presence by themselves.

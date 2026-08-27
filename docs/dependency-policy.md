@@ -27,9 +27,10 @@ go mod tidy -diff
 go mod verify
 make check
 make test-race
+make lint
 ```
 
-Run `govulncheck ./...` for release candidates and for changes responding to a Go vulnerability.
-Review transitive graph, license, release notes, and behavior changes before merging. Major
-updates require an explicit migration note. A dependency is removed when its functionality is no
-longer used.
+Run `govulncheck ./...` (or `make vulncheck`) for release candidates, pull-request CI, and for
+changes responding to a Go vulnerability. Review transitive graph, license, release notes, and
+behavior changes before merging. Major updates require an explicit migration note. A dependency
+is removed when its functionality is no longer used.

@@ -53,7 +53,12 @@ High confidence and a confirmed state are not used. Evaluation sends no addition
 it reuses capability discovery. Declared probes, when present, are GET paths from the capability
 allowlist.
 
-`checks.WithSignatures` appends this evaluator to the default registry. `DefaultRegistry` does
-not load a vulnerability database.
+`checks.WithSignatures` appends this evaluator to the default registry. `SignatureRegistry`
+evaluates signatures only. `DefaultRegistry` does not load a vulnerability database.
+`garga scan --signatures DIR` loads that directory at runtime together with exposure checks.
+`garga vuln --signatures DIR` uses `SignatureRegistry`.
+
+`make signatures-validate` loads the committed fixture directory through the same `LoadDir`
+validator. It does not fetch or activate a signed database.
 
 Signed database updates are documented in [signature-updates.md](signature-updates.md).

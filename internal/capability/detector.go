@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/cumakurt/garga/internal/fingerprint"
 	"github.com/cumakurt/garga/internal/model"
@@ -45,7 +46,7 @@ func (detector *Detector) Discover(
 	setCapability(&result, classifyProbe(NameRoot, root, nil))
 
 	var sawChallenge, basicAuth, apiKey bool
-	if root.StatusCode == 401 || root.StatusCode == 403 {
+	if root.StatusCode == http.StatusUnauthorized || root.StatusCode == http.StatusForbidden {
 		sawChallenge = true
 		basicAuth, apiKey = advertisedMechanisms(root.Headers)
 	}
@@ -80,7 +81,7 @@ func (detector *Detector) Discover(
 		if spec.name == NameSecurity && response.StatusCode >= 200 && response.StatusCode <= 299 {
 			result.AnonymousSuperuser = parseAnonymousSuperuser(response.Body)
 		}
-		if response.StatusCode == 401 || response.StatusCode == 403 {
+		if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
 			sawChallenge = true
 			probeBasic, probeAPIKey := advertisedMechanisms(response.Headers)
 			basicAuth = basicAuth || probeBasic

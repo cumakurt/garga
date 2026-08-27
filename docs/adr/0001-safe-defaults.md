@@ -34,4 +34,5 @@ sources, scheduling, limiting, retries, and requests.
 
 Large authorized assessments may require explicit tuning. Faster defaults are not accepted
 without benchmark and safety evidence. `--insecure` may disable certificate verification only;
-it does not disable limits, timeouts, redaction, or method safety.
+it does not disable limits, timeouts, redaction, or method safety. The shared HTTP transport
+accepts only `GET` with no request body (ADR 0022).

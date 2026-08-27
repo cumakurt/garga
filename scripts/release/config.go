@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -156,7 +157,9 @@ func findModuleRoot(start string) (string, error) {
 }
 
 func gitHEAD(root string) (string, error) {
-	command := exec.Command("git", "rev-parse", "HEAD")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, "git", "rev-parse", "HEAD")
 	command.Dir = root
 	output, err := command.Output()
 	if err != nil {

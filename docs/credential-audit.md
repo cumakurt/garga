@@ -5,7 +5,8 @@ it does not run unless the operator invokes this command with an explicit stdin 
 
 ## Safety controls
 
-- Every attempt is `GET /_security/_authenticate`. No write or state-changing request is sent.
+- Every attempt is `GET /_security/_authenticate` (`capability.PathAuthenticate`). No write or
+  state-changing request is sent. `GET /_security/user/_authenticate` is Get User and is not used.
 - Default rate is 1 request/second globally and per host. Scanner `GARGA_RATE` values do not apply.
 - Default per-host attempt ceiling is 5. `--max-attempts` may raise this only to 20.
 - Transient retries (429/5xx/timeouts) count against the attempt ceiling and wait for the rate limiter.

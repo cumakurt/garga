@@ -17,7 +17,7 @@ func TestJoinAPIPath(t *testing.T) {
 		{"/es", pathNodes, "/es/_nodes/_local/http"},
 		{"/es/", pathCat, "/es/_cat/health"},
 		{"/es", pathIndices, "/es/_cat/indices"},
-		{"/proxy", pathSecurity, "/proxy/_security/_authenticate"},
+		{"/proxy", PathAuthenticate, "/proxy/_security/_authenticate"},
 	}
 	for _, test := range tests {
 		got, err := joinAPIPath(test.base, test.api)
@@ -41,6 +41,7 @@ func TestJoinAPIPathRejectsNonAllowlistedAndUnsafeInputs(t *testing.T) {
 		{"", "/_all"},
 		{"", "/_cluster/settings"},
 		{"", "/_security/user"},
+		{"", "/_security/user/_authenticate"},
 		{"elastic", pathHealth},
 		{"/elastic?x=1", pathHealth},
 		{"", "/../_cluster/health"},
@@ -57,7 +58,7 @@ func TestCatalogPathsAreAllowlistedGETTargets(t *testing.T) {
 	t.Parallel()
 
 	if len(extraProbes) != 6 {
-		t.Fatalf("extraProbes = %d, want 5", len(extraProbes))
+		t.Fatalf("extraProbes = %d, want 6", len(extraProbes))
 	}
 	seen := map[Name]struct{}{}
 	for _, spec := range extraProbes {
@@ -83,5 +84,28 @@ func TestReadOnlyProbe(t *testing.T) {
 	}
 	if _, _, ok := ReadOnlyProbe(NameAnonymous); ok {
 		t.Fatal("derived capability unexpectedly has a catalog probe")
+	}
+}
+
+func TestAllowlistIsDerivedFromCatalog(t *testing.T) {
+	t.Parallel()
+
+	paths := AllowlistedAPIPaths()
+	if len(paths) != len(extraProbes) {
+		t.Fatalf("AllowlistedAPIPaths() = %d, want %d", len(paths), len(extraProbes))
+	}
+	for index, spec := range extraProbes {
+		if paths[index] != spec.path {
+			t.Fatalf("AllowlistedAPIPaths()[%d] = %q, want %q", index, paths[index], spec.path)
+		}
+		if !IsAllowlistedAPIPath(spec.path) {
+			t.Fatalf("catalog path %q is not allowlisted", spec.path)
+		}
+	}
+	if !IsAllowlistedAPIPath(PathAuthenticate) {
+		t.Fatal("PathAuthenticate is missing from the GET catalog")
+	}
+	if IsAllowlistedAPIPath("/_security/user/_authenticate") {
+		t.Fatal("Get User path must not be allowlisted")
 	}
 }

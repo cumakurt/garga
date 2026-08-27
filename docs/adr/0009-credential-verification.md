@@ -26,4 +26,4 @@ belongs in a separate opt-in engine with no call path from normal commands.
 
 Scan orchestration must not read this secret type unless a later work package adds an explicit,
 documented authenticated scan mode. Credential audit is a separate engine in
-`internal/credential/audit` with no call path from `auth-check` or a future `scan` command.
+`internal/credential/audit` with no call path from `auth-check` or `scan`.

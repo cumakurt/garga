@@ -8,9 +8,9 @@ garga resolves configuration in this order, from lowest to highest precedence:
 4. command-line overrides.
 
 The configuration is fully resolved and validated before a command may start network activity.
-The current pre-network CLI milestone does not yet expose scan commands; those commands will bind
-their flags to the typed override layer when introduced. `garga report` uses `output.format` when
-`--format` is omitted.
+`garga scan` and `garga vuln` bind `--concurrency`, `--rate`, `--per-host-rate`, and `--format`
+to the typed override layer. `garga fingerprint` also binds `--threshold` to
+`fingerprint.threshold`. `garga report` uses `output.format` when `--format` is omitted.
 
 ## Selecting a file
 
@@ -46,8 +46,9 @@ This general configuration model deliberately contains no credentials, authoriza
 API keys, or passwords. Authentication input uses `garga auth-check` and `garga auth-audit` with
 stdin secrets as documented in [credentials.md](credentials.md) and
 [credential-audit.md](credential-audit.md). Scanner rate settings do not apply to credential
-audit. Configuration parse and validation errors identify the field or environment variable but
-never echo its supplied value.
+audit. `garga scan`, `garga fingerprint`, and `garga vuln` do not accept credentials.
+Configuration parse and validation errors
+identify the field or environment variable but never echo its supplied value.
 
 Logs are JSON on stderr. `logging.level` selects `error`, `warn`, `info`, or `debug`. The default
 `info` level does not emit per-request probe lines. See [observability.md](observability.md).

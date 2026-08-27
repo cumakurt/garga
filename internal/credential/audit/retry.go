@@ -2,7 +2,6 @@ package audit
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"hash/fnv"
 	"net/http"
@@ -62,9 +61,8 @@ func retryDelay(options Options, endpoint model.Endpoint, retryNumber int) time.
 	_, _ = hasher.Write([]byte(endpoint.Host))
 	_, _ = hasher.Write([]byte{0})
 	_, _ = hasher.Write([]byte(strconv.Itoa(endpoint.Port)))
-	var retryBytes [8]byte
-	binary.LittleEndian.PutUint64(retryBytes[:], uint64(retryNumber))
-	_, _ = hasher.Write(retryBytes[:])
+	_, _ = hasher.Write([]byte{0})
+	_, _ = hasher.Write([]byte(strconv.Itoa(retryNumber)))
 	factorPermille := int64(800 + hasher.Sum32()%401)
 	delay = time.Duration(int64(delay) * factorPermille / 1000)
 	if delay > options.RetryMaxBackoff {

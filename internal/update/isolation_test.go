@@ -21,6 +21,7 @@ func TestUpdatePackageDoesNotImportOrchestrationLayers(t *testing.T) {
 	forbidden := []string{
 		"github.com/cumakurt/garga/internal/scanner",
 		"github.com/cumakurt/garga/internal/cli",
+		"github.com/cumakurt/garga/internal/app",
 		"github.com/cumakurt/garga/internal/fingerprint",
 		"github.com/cumakurt/garga/internal/capability",
 		"github.com/cumakurt/garga/internal/probe",
@@ -66,6 +67,7 @@ func TestUpdatePackageIsNotImportedByScanPath(t *testing.T) {
 	root := filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
 	importPath := "github.com/cumakurt/garga/internal/update"
 	forbidden := []string{
+		"internal/app",
 		"internal/scanner",
 		"internal/fingerprint",
 		"internal/capability",

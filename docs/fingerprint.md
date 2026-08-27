@@ -1,8 +1,23 @@
 # Elasticsearch fingerprint contract
 
-Fingerprinting is a pure, deterministic evaluation of one bounded probe result. It does not make
-network requests and never treats port 9200 as product evidence. The supported-version policy is
-recorded in [ADR 0005](adr/0005-elasticsearch-version-support.md).
+Fingerprinting is a pure, deterministic evaluation of one bounded probe result. The engine itself
+does not make network requests and never treats port 9200 as product evidence. `garga fingerprint`
+issues `GET /` through the bounded scanner, then evaluates that probe locally. The
+supported-version policy is recorded in [ADR 0005](adr/0005-elasticsearch-version-support.md).
+
+## CLI
+
+```sh
+garga fingerprint 192.0.2.10
+garga fingerprint --file targets.txt --format jsonl
+garga fingerprint https://es.example.internal:9200 --threshold 80
+```
+
+The command does not discover extra APIs, evaluate checks, load signatures, or send credentials.
+`--format` accepts `console`, `json`, or `jsonl`. Finding-oriented `csv` and `html` formats are
+rejected. Identities use schema `0.1` with event `fingerprint.identity`. Probe failures after a
+completed run exit `3`. `--threshold` overrides `fingerprint.threshold`. Target ingestion matches
+[scan.md](scan.md). Signature-only matching is `garga vuln`; see [signatures.md](signatures.md).
 
 ## Score model
 

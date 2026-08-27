@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/cumakurt/garga/internal/capability"
 	"github.com/cumakurt/garga/internal/model"
 	"github.com/cumakurt/garga/internal/transport"
 )
@@ -13,7 +14,6 @@ import (
 // Elasticsearch Authenticate is GET /_security/_authenticate (since 5.5.0).
 // GET /_security/user/_authenticate is Get User for username "_authenticate"
 // and returns 404 even when the credential is valid.
-const pathAuthenticate = "/_security/_authenticate"
 
 // Outcome is a secret-free verification result.
 type Outcome string
@@ -94,7 +94,7 @@ func (verifier *Verifier) Verify(ctx context.Context, endpoint model.Endpoint, s
 }
 
 func authenticateURL(endpoint model.Endpoint) (string, error) {
-	joined, err := joinAPIPath(endpoint.Path, pathAuthenticate)
+	joined, err := joinAPIPath(endpoint.Path, capability.PathAuthenticate)
 	if err != nil {
 		return "", err
 	}
@@ -107,7 +107,7 @@ func authenticateURL(endpoint model.Endpoint) (string, error) {
 }
 
 func joinAPIPath(basePath, apiPath string) (string, error) {
-	if apiPath != pathAuthenticate {
+	if apiPath != capability.PathAuthenticate {
 		return "", fmt.Errorf("verify credential: API path is not allowlisted")
 	}
 	basePath = strings.TrimSuffix(basePath, "/")

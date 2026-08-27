@@ -84,6 +84,9 @@ func NewFactory(options Options) (*Factory, error) {
 			if request.URL.User != nil {
 				return errInvalidRequest
 			}
+			if request.Method != http.MethodGet || hasRequestBody(request) {
+				return errInvalidRequest
+			}
 			if len(via) > 0 && !sameOrigin(via[len(via)-1].URL, request.URL) {
 				request.Header.Del("Authorization")
 				request.Header.Del("Proxy-Authorization")
@@ -160,6 +163,9 @@ func validRequest(request *http.Request) bool {
 	if request == nil || request.URL == nil || request.URL.Host == "" || request.URL.User != nil {
 		return false
 	}
+	if request.Method != http.MethodGet || hasRequestBody(request) {
+		return false
+	}
 	switch strings.ToLower(request.URL.Scheme) {
 	case "http", "https":
 		return true
@@ -168,12 +174,27 @@ func validRequest(request *http.Request) bool {
 	}
 }
 
+func hasRequestBody(request *http.Request) bool {
+	if request == nil {
+		return false
+	}
+	if request.ContentLength > 0 {
+		return true
+	}
+	return request.Body != nil && request.Body != http.NoBody
+}
+
 func sameOrigin(left, right *url.URL) bool {
 	return strings.EqualFold(left.Scheme, right.Scheme) && strings.EqualFold(left.Host, right.Host)
 }
 
-// NewRequest constructs a request while preventing raw URL parser errors from escaping.
+// NewRequest constructs a GET request while preventing raw URL parser errors from escaping.
+// Non-GET methods and request bodies are rejected so the transport cannot send a
+// state-changing product request.
 func NewRequest(ctx context.Context, method, rawURL string, body io.Reader) (*http.Request, error) {
+	if method != http.MethodGet || body != nil {
+		return nil, &Error{kind: ErrorInvalidRequest, operation: "request", cause: errInvalidRequest}
+	}
 	parsedURL, err := url.ParseRequestURI(rawURL)
 	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" || parsedURL.User != nil {
 		return nil, &Error{kind: ErrorInvalidRequest, operation: "request", cause: errInvalidRequest}

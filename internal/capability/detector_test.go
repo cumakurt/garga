@@ -67,7 +67,7 @@ func TestDiscoverUnsupportedAPISuppressesDependentChecks(t *testing.T) {
 		case strings.HasSuffix(request.URL.Path, pathNodes):
 			writer.WriteHeader(http.StatusNotFound)
 			_, _ = io.WriteString(writer, `{"error":"`+canary+`"}`)
-		case strings.HasSuffix(request.URL.Path, pathSecurity):
+		case strings.HasSuffix(request.URL.Path, PathAuthenticate):
 			writer.WriteHeader(http.StatusNotImplemented)
 		default:
 			writer.WriteHeader(http.StatusOK)
@@ -216,7 +216,7 @@ func TestDiscoverAnonymousSuperuserIsRedacted(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
-		if strings.HasSuffix(request.URL.Path, pathSecurity) {
+		if strings.HasSuffix(request.URL.Path, PathAuthenticate) {
 			writer.WriteHeader(http.StatusOK)
 			_, _ = io.WriteString(writer, `{"username":"`+canary+`","roles":["`+canary+`","superuser"]}`)
 			return
@@ -373,7 +373,7 @@ func TestNewRejectsNilInputs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	_, err = ready.Discover(nil, model.Endpoint{}, confirmedIdentity(), openRoot())
+	_, err = ready.Discover(nil, model.Endpoint{}, confirmedIdentity(), openRoot()) //nolint:staticcheck // nil context must be rejected
 	if err == nil {
 		t.Fatal("Discover(nil context) returned nil error")
 	}
@@ -569,13 +569,9 @@ func assertAvailability(t *testing.T, result Result, want map[Name]Availability)
 
 func assertSafeRequests(t *testing.T, requests []recordedRequest, prefix string) {
 	t.Helper()
-	allowed := map[string]struct{}{
-		pathHealth:   {},
-		pathState:    {},
-		pathNodes:    {},
-		pathCat:      {},
-		pathIndices:  {},
-		pathSecurity: {},
+	allowed := map[string]struct{}{}
+	for _, path := range AllowlistedAPIPaths() {
+		allowed[path] = struct{}{}
 	}
 	if len(requests) == 0 {
 		t.Fatal("no capability requests were issued")

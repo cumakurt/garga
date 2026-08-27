@@ -57,13 +57,19 @@ func TestAuthAuditDoesNotRegisterPasswordFlag(t *testing.T) {
 	}
 }
 
-func TestScanCommandIsNotRegistered(t *testing.T) {
+func TestScanCommandIsRegisteredWithoutAuditPath(t *testing.T) {
 	t.Parallel()
 
 	root := NewRootCommand(BuildInfo{})
 	cmd, _, err := root.Find([]string{"scan"})
-	if err == nil && cmd != nil && cmd.Name() == "scan" {
-		t.Fatalf("scan must not be registered without proving it has no audit call path; found %q", cmd.Use)
+	if err != nil {
+		t.Fatalf("Find() error = %v", err)
+	}
+	if cmd == nil || cmd.Name() != "scan" {
+		t.Fatal("scan command is not registered")
+	}
+	if cmd.Flags().Lookup("password") != nil {
+		t.Fatal("scan registered a --password flag")
 	}
 }
 
@@ -74,6 +80,16 @@ func TestScanSourcesDoNotCallAuditEngine(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Glob() error = %v", err)
 	}
+	fingerprintFiles, err := filepath.Glob("fingerprint*.go")
+	if err != nil {
+		t.Fatalf("Glob() error = %v", err)
+	}
+	vulnFiles, err := filepath.Glob("vuln*.go")
+	if err != nil {
+		t.Fatalf("Glob() error = %v", err)
+	}
+	matches = append(matches, fingerprintFiles...)
+	matches = append(matches, vulnFiles...)
 	for _, filename := range matches {
 		content, readErr := os.ReadFile(filename)
 		if readErr != nil {

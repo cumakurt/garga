@@ -27,8 +27,8 @@ The default assessment path is read-only. garga must not:
 `garga auth-check` verifies one credential. `garga auth-audit` is isolated, rate-limited, and
 attempt-limited. Neither command accepts a `--password` flag.
 
-A product `scan` command is not published in this pre-release tree. When it exists, it remains
-bound to the same GET-only, non-state-changing contract.
+`garga scan` and `garga vuln` remain bound to the same GET-only, non-state-changing contract.
+They do not send credentials.
 
 ## Handling output
 

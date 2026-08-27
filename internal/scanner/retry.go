@@ -2,9 +2,9 @@ package scanner
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"hash/fnv"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -16,7 +16,8 @@ import (
 func shouldRetry(result probe.Result, err error) bool {
 	if err == nil {
 		switch result.StatusCode {
-		case 408, 425, 429, 500, 502, 503, 504:
+		case http.StatusRequestTimeout, http.StatusTooEarly, http.StatusTooManyRequests,
+			http.StatusInternalServerError, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
 			return true
 		default:
 			return false
@@ -61,9 +62,8 @@ func retryDelay(options Options, endpoint model.Endpoint, retryNumber int) time.
 	_, _ = hasher.Write([]byte(endpoint.Host))
 	_, _ = hasher.Write([]byte{0})
 	_, _ = hasher.Write([]byte(strconv.Itoa(endpoint.Port)))
-	var retryBytes [8]byte
-	binary.LittleEndian.PutUint64(retryBytes[:], uint64(retryNumber))
-	_, _ = hasher.Write(retryBytes[:])
+	_, _ = hasher.Write([]byte{0})
+	_, _ = hasher.Write([]byte(strconv.Itoa(retryNumber)))
 	// A stable 80%..120% factor spreads retries without nondeterministic test output.
 	factorPermille := int64(800 + hasher.Sum32()%401)
 	delay = time.Duration(int64(delay) * factorPermille / 1000)

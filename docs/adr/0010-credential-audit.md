@@ -24,6 +24,5 @@ configuration dumps.
 
 ## Consequences
 
-A future `scan` command must keep this isolation. Adding scan must fail the dedicated source-level
-isolation tests until it is proven not to call the audit engine. Authenticated scan, if added
-later, is a separate explicit mode and must not reuse this spraying engine.
+A future authenticated scan mode, if added, is a separate explicit mode and must not reuse this
+spraying engine. `garga scan` has no call path to the audit engine.

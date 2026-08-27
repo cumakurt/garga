@@ -2,7 +2,9 @@
 
 `garga auth-check` verifies one explicit Elasticsearch credential. It is not the normal scan
 path and it is not credential spraying. The command sends a single GET to
-`/_security/_authenticate` and reports whether the server accepted the credential.
+`/_security/_authenticate` (`capability.PathAuthenticate`) and reports whether the server accepted
+the credential. That path is the Elasticsearch Authenticate API; `GET /_security/user/_authenticate`
+is Get User and is not used.
 
 ## Input
 

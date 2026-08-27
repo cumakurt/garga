@@ -5,6 +5,9 @@ consume `model.Finding` values and do not import the scanner. Machine formats us
 `0.1`. That is a pre-release document shape and is not the public `1.0` contract in
 [ADR 0003](adr/0003-output-versioning.md).
 
+`garga scan`, `garga vuln`, and `garga report` share these writers. Scan and vuln stream findings
+as they are produced.
+
 ## CLI
 
 ```sh

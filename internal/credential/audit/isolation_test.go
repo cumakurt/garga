@@ -19,6 +19,7 @@ func TestAuditEngineIsNotImportedByScanPath(t *testing.T) {
 	}
 	root := filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", ".."))
 	forbidden := []string{
+		"internal/app",
 		"internal/scanner",
 		"internal/fingerprint",
 		"internal/capability",

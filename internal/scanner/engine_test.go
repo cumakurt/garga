@@ -315,7 +315,7 @@ func TestEngineValidation(t *testing.T) {
 		t.Fatal("nil Engine.Run() returned nil error")
 	}
 	engine := newScannerTestEngine(t, scannerTestOptions(t), successfulProber())
-	if _, err := engine.Run(nil, &generatedSource{}, &recordingSink{}); err == nil {
+	if _, err := engine.Run(nil, &generatedSource{}, &recordingSink{}); err == nil { //nolint:staticcheck // nil context must be rejected
 		t.Fatal("Run() accepted nil context")
 	}
 	if _, err := engine.Run(context.Background(), nil, &recordingSink{}); err == nil {

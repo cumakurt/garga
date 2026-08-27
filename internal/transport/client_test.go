@@ -65,7 +65,8 @@ func TestFactoryReturnsOneSharedClientAndReusesConnection(t *testing.T) {
 	defer server.Close()
 
 	factory := newTestFactory(t, testOptions(t))
-	if factory.Client() != factory.Client() {
+	firstClient := factory.Client()
+	if factory.Client() != firstClient {
 		t.Fatal("factory returned different client instances")
 	}
 	for range 2 {
@@ -320,6 +321,58 @@ func TestClientCancellation(t *testing.T) {
 	factory := newTestFactory(t, testOptions(t))
 	_, err := factory.Client().Do(mustRequest(t, ctx, http.MethodGet, "http://127.0.0.1:1"))
 	assertErrorKind(t, err, ErrorCanceled)
+}
+
+func TestClientRejectsNonGETAndRequestBodies(t *testing.T) {
+	t.Parallel()
+
+	var hits atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		hits.Add(1)
+	}))
+	defer server.Close()
+
+	factory := newTestFactory(t, testOptions(t))
+	ctx := context.Background()
+	methods := []string{
+		http.MethodPost,
+		http.MethodPut,
+		http.MethodPatch,
+		http.MethodDelete,
+		http.MethodHead,
+		http.MethodOptions,
+		"get",
+		"",
+	}
+	for _, method := range methods {
+		_, err := NewRequest(ctx, method, server.URL, nil)
+		assertErrorKind(t, err, ErrorInvalidRequest)
+		if strings.Contains(err.Error(), server.URL) {
+			t.Fatalf("NewRequest(%q) error exposed URL: %q", method, err)
+		}
+
+		request, err := http.NewRequestWithContext(ctx, method, server.URL, nil)
+		if err != nil {
+			t.Fatalf("http.NewRequestWithContext(%q) error = %v", method, err)
+		}
+		request.Method = method
+		_, err = factory.Client().Do(request)
+		assertErrorKind(t, err, ErrorInvalidRequest)
+	}
+
+	_, err := NewRequest(ctx, http.MethodGet, server.URL, strings.NewReader("{}"))
+	assertErrorKind(t, err, ErrorInvalidRequest)
+
+	bodyRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL, strings.NewReader("{}"))
+	if err != nil {
+		t.Fatalf("http.NewRequestWithContext() error = %v", err)
+	}
+	_, err = factory.Client().Do(bodyRequest)
+	assertErrorKind(t, err, ErrorInvalidRequest)
+
+	if got := hits.Load(); got != 0 {
+		t.Fatalf("server received %d rejected requests", got)
+	}
 }
 
 func TestClientRejectsUnsafeRequestURLWithoutExposingCredentials(t *testing.T) {

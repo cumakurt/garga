@@ -14,10 +14,10 @@ INSTALLED_GO_VERSION=""
 NEED_GO=0
 NEED_GIT=0
 FORCE_REBUILD=0
-SETUP_ONLY=0
-SHOW_LAUNCHER_HELP=0
+SHOW_HELP=0
 TEMP_BINARY=""
-APP_ARGS=()
+PREFIX="${PREFIX:-/usr/local}"
+DESTDIR="${DESTDIR:-}"
 
 if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
 	COLOR_BLUE=$'\033[34m'
@@ -58,44 +58,26 @@ cleanup() {
 
 trap cleanup EXIT INT TERM
 
-show_launcher_help() {
+show_install_help() {
 	cat <<'EOF'
 Usage:
-  ./run.sh [launcher options] [--] [garga arguments]
+  ./install.sh [options]
 
-Launcher options:
-  -h, --help       Show launcher help and, when ready, garga command help.
-  --setup-only     Install missing build dependencies and prepare the binary without running it.
-  --rebuild        Rebuild even when the existing binary is current.
-  --               Pass all remaining arguments directly to garga.
+Install missing build dependencies, build garga, and copy the binary to
+PREFIX/bin (default /usr/local/bin) so the garga command is on PATH.
 
-Behavior:
-  With no arguments, the launcher prepares garga, prints application help, and shows examples.
-  When the binary is current and executable, dependency installation and rebuilding are skipped.
-EOF
-}
+Options:
+  -h, --help         Show this installer help.
+  --rebuild          Rebuild even when the existing binary is current.
+  --prefix DIR       Install into DIR/bin instead of /usr/local/bin.
 
-show_examples() {
-	cat <<'EOF'
+Environment:
+  PREFIX             Same as --prefix (default /usr/local).
+  DESTDIR            Optional staging root prepended to PREFIX.
 
-Examples:
-  ./run.sh
-      Prepare garga and display application help.
-
-  ./run.sh version
-      Print garga version information.
-
-  ./run.sh --setup-only
-      Prepare the application without running a command.
-
-  ./run.sh --rebuild version
-      Force a clean binary replacement, then print its version.
-
-  ./run.sh -- --help
-      Prepare the application and pass --help directly to garga.
-
-  ./bin/garga version
-      Run the prepared binary directly.
+This script does not run garga commands. After installation, use:
+  garga --help
+  garga version
 EOF
 }
 
@@ -103,35 +85,32 @@ parse_arguments() {
 	while (($# > 0)); do
 		case "$1" in
 		-h | --help)
-			SHOW_LAUNCHER_HELP=1
-			shift
-			;;
-		--setup-only)
-			SETUP_ONLY=1
+			SHOW_HELP=1
 			shift
 			;;
 		--rebuild)
 			FORCE_REBUILD=1
 			shift
 			;;
-		--)
+		--prefix)
+			if (($# < 2)) || [[ -z "${2:-}" ]]; then
+				fail "--prefix requires a directory."
+			fi
+			PREFIX="$2"
+			shift 2
+			;;
+		--prefix=*)
+			PREFIX="${1#--prefix=}"
+			if [[ -z "${PREFIX}" ]]; then
+				fail "--prefix requires a directory."
+			fi
 			shift
-			APP_ARGS=("$@")
-			break
 			;;
 		*)
-			APP_ARGS=("$@")
-			break
+			fail "unexpected argument '$1'. This installer does not run garga commands. Use './install.sh --help'."
 			;;
 		esac
 	done
-
-	if ((SHOW_LAUNCHER_HELP)) && ((${#APP_ARGS[@]} > 0)); then
-		fail "--help cannot be combined with garga arguments. Use './run.sh -- --help' to pass application help explicitly."
-	fi
-	if ((SETUP_ONLY)) && ((${#APP_ARGS[@]} > 0)); then
-		fail "--setup-only cannot be combined with garga arguments."
-	fi
 }
 
 detect_operating_system() {
@@ -190,7 +169,7 @@ read_required_go_version() {
 		fi
 	done <"${GO_MOD_PATH}"
 
-	fail "Unable to read the required Go version from ${GO_MOD_PATH}. Restore a valid go.mod file and rerun the launcher."
+	fail "Unable to read the required Go version from ${GO_MOD_PATH}. Restore a valid go.mod file and rerun ./install.sh."
 }
 
 go_version_is_supported() {
@@ -276,7 +255,7 @@ run_as_root() {
 		sudo "$@"
 		return
 	fi
-	fail "Administrative privileges are required, but sudo is unavailable. Run the shown package-manager command as root, then rerun ./run.sh."
+	fail "Administrative privileges are required, but sudo is unavailable. Run the shown package-manager command as root, then rerun ./install.sh."
 }
 
 install_apt_dependencies() {
@@ -286,10 +265,10 @@ install_apt_dependencies() {
 
 	info "Installing missing dependencies with apt-get: ${packages[*]}"
 	if ! run_as_root apt-get update; then
-		fail "apt-get update failed. Check repository configuration and network access, then rerun ./run.sh."
+		fail "apt-get update failed. Check repository configuration and network access, then rerun ./install.sh."
 	fi
 	if ! run_as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages[@]}"; then
-		fail "apt-get could not install the required packages. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./run.sh."
+		fail "apt-get could not install the required packages. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./install.sh."
 	fi
 }
 
@@ -299,7 +278,7 @@ install_dnf_dependencies() {
 	((NEED_GIT)) && packages+=(git)
 	info "Installing missing dependencies with dnf: ${packages[*]}"
 	if ! run_as_root dnf install -y "${packages[@]}"; then
-		fail "dnf could not install the required packages. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./run.sh."
+		fail "dnf could not install the required packages. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./install.sh."
 	fi
 }
 
@@ -309,7 +288,7 @@ install_yum_dependencies() {
 	((NEED_GIT)) && packages+=(git)
 	info "Installing missing dependencies with yum: ${packages[*]}"
 	if ! run_as_root yum install -y "${packages[@]}"; then
-		fail "yum could not install the required packages. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./run.sh."
+		fail "yum could not install the required packages. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./install.sh."
 	fi
 }
 
@@ -319,7 +298,7 @@ install_pacman_dependencies() {
 	((NEED_GIT)) && packages+=(git)
 	info "Installing missing dependencies with pacman: ${packages[*]}"
 	if ! run_as_root pacman -S --needed --noconfirm "${packages[@]}"; then
-		fail "pacman could not install the required packages. Update the system package database safely, install Go >= ${REQUIRED_GO_VERSION} and Git, then rerun ./run.sh."
+		fail "pacman could not install the required packages. Update the system package database safely, install Go >= ${REQUIRED_GO_VERSION} and Git, then rerun ./install.sh."
 	fi
 }
 
@@ -329,7 +308,7 @@ install_zypper_dependencies() {
 	((NEED_GIT)) && packages+=(git)
 	info "Installing missing dependencies with zypper: ${packages[*]}"
 	if ! run_as_root zypper --non-interactive install "${packages[@]}"; then
-		fail "zypper could not install the required packages. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./run.sh."
+		fail "zypper could not install the required packages. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./install.sh."
 	fi
 }
 
@@ -339,7 +318,7 @@ install_apk_dependencies() {
 	((NEED_GIT)) && packages+=(git)
 	info "Installing missing dependencies with apk: ${packages[*]}"
 	if ! run_as_root apk add "${packages[@]}"; then
-		fail "apk could not install the required packages. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./run.sh."
+		fail "apk could not install the required packages. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./install.sh."
 	fi
 }
 
@@ -349,24 +328,24 @@ install_brew_dependencies() {
 	((NEED_GIT)) && packages+=(git)
 	info "Installing missing dependencies with Homebrew: ${packages[*]}"
 	if ! brew install "${packages[@]}"; then
-		fail "Homebrew could not install the required packages. Resolve the reported error and rerun ./run.sh."
+		fail "Homebrew could not install the required packages. Resolve the reported error and rerun ./install.sh."
 	fi
 }
 
 install_windows_dependencies() {
 	if ! command -v winget.exe >/dev/null 2>&1; then
-		fail "No supported Windows package manager was found. Install Go >= ${REQUIRED_GO_VERSION} from https://go.dev/dl/ and Git from https://git-scm.com/download/win, then reopen the shell and rerun ./run.sh."
+		fail "No supported Windows package manager was found. Install Go >= ${REQUIRED_GO_VERSION} from https://go.dev/dl/ and Git from https://git-scm.com/download/win, then reopen the shell and rerun ./install.sh."
 	fi
 	if ((NEED_GO)); then
 		info "Installing Go with winget."
 		if ! winget.exe install --id GoLang.Go --exact --silent --accept-package-agreements --accept-source-agreements; then
-			fail "winget could not install Go. Install Go >= ${REQUIRED_GO_VERSION} from https://go.dev/dl/, reopen the shell, and rerun ./run.sh."
+			fail "winget could not install Go. Install Go >= ${REQUIRED_GO_VERSION} from https://go.dev/dl/, reopen the shell, and rerun ./install.sh."
 		fi
 	fi
 	if ((NEED_GIT)); then
 		info "Installing Git with winget."
 		if ! winget.exe install --id Git.Git --exact --silent --accept-package-agreements --accept-source-agreements; then
-			fail "winget could not install Git. Install it from https://git-scm.com/download/win, reopen the shell, and rerun ./run.sh."
+			fail "winget could not install Git. Install it from https://git-scm.com/download/win, reopen the shell, and rerun ./install.sh."
 		fi
 	fi
 
@@ -401,14 +380,14 @@ install_dependencies() {
 		elif command -v brew >/dev/null 2>&1; then
 			install_brew_dependencies
 		else
-			fail "No supported Linux package manager was found. Install Go >= ${REQUIRED_GO_VERSION} and Git, ensure both commands are on PATH, then rerun ./run.sh."
+			fail "No supported Linux package manager was found. Install Go >= ${REQUIRED_GO_VERSION} and Git, ensure both commands are on PATH, then rerun ./install.sh."
 		fi
 		;;
 	macos)
 		if command -v brew >/dev/null 2>&1; then
 			install_brew_dependencies
 		else
-			fail "Homebrew is required for automatic setup on macOS. Install it from https://brew.sh/, then rerun ./run.sh. Alternatively install Go >= ${REQUIRED_GO_VERSION} and Git manually."
+			fail "Homebrew is required for automatic setup on macOS. Install it from https://brew.sh/, then rerun ./install.sh. Alternatively install Go >= ${REQUIRED_GO_VERSION} and Git manually."
 		fi
 		;;
 	freebsd)
@@ -417,7 +396,7 @@ install_dependencies() {
 		((NEED_GIT)) && packages+=(git)
 		info "Installing missing dependencies with pkg: ${packages[*]}"
 		if ! run_as_root pkg install -y "${packages[@]}"; then
-			fail "pkg could not install the required packages. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./run.sh."
+			fail "pkg could not install the required packages. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./install.sh."
 		fi
 		;;
 	openbsd)
@@ -426,26 +405,26 @@ install_dependencies() {
 		((NEED_GIT)) && packages+=(git)
 		info "Installing missing dependencies with pkg_add: ${packages[*]}"
 		if ! run_as_root pkg_add "${packages[@]}"; then
-			fail "pkg_add could not install the required packages. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./run.sh."
+			fail "pkg_add could not install the required packages. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./install.sh."
 		fi
 		;;
 	netbsd)
 		if ! command -v pkgin >/dev/null 2>&1; then
-			fail "pkgin is required for automatic setup on NetBSD. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./run.sh."
+			fail "pkgin is required for automatic setup on NetBSD. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./install.sh."
 		fi
 		local packages=()
 		((NEED_GO)) && packages+=(go)
 		((NEED_GIT)) && packages+=(git)
 		info "Installing missing dependencies with pkgin: ${packages[*]}"
 		if ! run_as_root pkgin -y install "${packages[@]}"; then
-			fail "pkgin could not install the required packages. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./run.sh."
+			fail "pkgin could not install the required packages. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./install.sh."
 		fi
 		;;
 	windows)
 		install_windows_dependencies
 		;;
 	*)
-		fail "Automatic dependency installation is not supported on ${OS_NAME}. Install Go >= ${REQUIRED_GO_VERSION} and Git, ensure both commands are on PATH, then rerun ./run.sh."
+		fail "Automatic dependency installation is not supported on ${OS_NAME}. Install Go >= ${REQUIRED_GO_VERSION} and Git, ensure both commands are on PATH, then rerun ./install.sh."
 		;;
 	esac
 
@@ -454,14 +433,14 @@ install_dependencies() {
 
 verify_build_dependencies() {
 	if ! command -v go >/dev/null 2>&1; then
-		fail "Go is still unavailable after installation. Open a new terminal or add the Go bin directory to PATH, then rerun ./run.sh."
+		fail "Go is still unavailable after installation. Open a new terminal or add the Go bin directory to PATH, then rerun ./install.sh."
 	fi
 	INSTALLED_GO_VERSION="$(go env GOVERSION 2>/dev/null || true)"
 	if ! go_version_is_supported "${INSTALLED_GO_VERSION}" "${REQUIRED_GO_VERSION}"; then
-		fail "${INSTALLED_GO_VERSION:-The installed Go version} does not satisfy Go ${REQUIRED_GO_VERSION}. Upgrade from https://go.dev/dl/, ensure the new go command is on PATH, then rerun ./run.sh."
+		fail "${INSTALLED_GO_VERSION:-The installed Go version} does not satisfy Go ${REQUIRED_GO_VERSION}. Upgrade from https://go.dev/dl/, ensure the new go command is on PATH, then rerun ./install.sh."
 	fi
 	if ! command -v git >/dev/null 2>&1; then
-		fail "Git is still unavailable after installation. Open a new terminal or add Git to PATH, then rerun ./run.sh."
+		fail "Git is still unavailable after installation. Open a new terminal or add Git to PATH, then rerun ./install.sh."
 	fi
 	success "Build dependencies are ready (${INSTALLED_GO_VERSION}, $(git --version))."
 }
@@ -471,17 +450,17 @@ build_application() {
 
 	info "Downloading missing Go modules. Cached modules will not be reinstalled."
 	if ! go mod download; then
-		fail "Go module download failed. Check internet access, TLS certificates, and GOPROXY, then rerun ./run.sh."
+		fail "Go module download failed. Check internet access, TLS certificates, and GOPROXY, then rerun ./install.sh."
 	fi
 	if ! go mod verify; then
-		fail "Go module verification failed. Clear the affected module cache entry only after reviewing the error, then rerun ./run.sh."
+		fail "Go module verification failed. Clear the affected module cache entry only after reviewing the error, then rerun ./install.sh."
 	fi
 
 	mkdir -p -- "$(dirname -- "${BINARY_PATH}")"
 	TEMP_BINARY="$(mktemp "${BINARY_PATH}.tmp.XXXXXX")"
 	info "Building garga. The existing binary will remain untouched if the build fails."
 	if ! go build -trimpath -o "${TEMP_BINARY}" ./cmd/garga; then
-		fail "garga build failed. Review the compiler output, correct the reported issue, and rerun ./run.sh."
+		fail "garga build failed. Review the compiler output, correct the reported issue, and rerun ./install.sh."
 	fi
 	chmod 0755 "${TEMP_BINARY}"
 	mv -f -- "${TEMP_BINARY}" "${BINARY_PATH}"
@@ -491,6 +470,32 @@ build_application() {
 		fail "The new binary was built but failed its help smoke test. Run '${BINARY_PATH} --help' to inspect the failure."
 	fi
 	success "garga is ready at ${BINARY_PATH}."
+}
+
+install_prepared_binary() {
+	local dest="${DESTDIR}${PREFIX}/bin"
+	local installed="${dest}/garga"
+
+	if [[ ! -x "${BINARY_PATH}" ]]; then
+		fail "No prepared binary at ${BINARY_PATH}. Rerun ./install.sh to build it."
+	fi
+
+	info "Installing garga to ${installed}."
+	if mkdir -p -- "${dest}" 2>/dev/null && cp -- "${BINARY_PATH}" "${installed}" && chmod 0755 "${installed}"; then
+		success "Installed ${installed}. Run 'garga --help' or 'garga version'."
+		return
+	fi
+	info "The destination is not writable; retrying with administrative privileges."
+	if ! run_as_root mkdir -p -- "${dest}"; then
+		fail "Could not create ${dest}. Choose a writable --prefix or rerun ./install.sh as root."
+	fi
+	if ! run_as_root cp -- "${BINARY_PATH}" "${installed}"; then
+		fail "Could not copy garga to ${installed}."
+	fi
+	if ! run_as_root chmod 0755 "${installed}"; then
+		fail "Could not set executable permissions on ${installed}."
+	fi
+	success "Installed ${installed}. Run 'garga --help' or 'garga version'."
 }
 
 prepare_application() {
@@ -517,34 +522,16 @@ prepare_application() {
 main() {
 	cd -- "${PROJECT_ROOT}"
 	parse_arguments "$@"
+
+	if ((SHOW_HELP)); then
+		show_install_help
+		return
+	fi
+
 	detect_operating_system
 	info "Detected operating system: ${OS_NAME}."
-
-	if ((SHOW_LAUNCHER_HELP)); then
-		show_launcher_help
-		if binary_is_current; then
-			printf '\ngarga command help:\n\n'
-			"${BINARY_PATH}" --help
-		else
-			warn "garga is not prepared or is stale. Run './run.sh' to install missing dependencies and build it."
-		fi
-		show_examples
-		return
-	fi
-
 	prepare_application
-	if ((SETUP_ONLY)); then
-		success "Setup completed. Run './run.sh' for help or './run.sh version' for version information."
-		return
-	fi
-
-	if ((${#APP_ARGS[@]} > 0)); then
-		exec "${BINARY_PATH}" "${APP_ARGS[@]}"
-	fi
-
-	printf '\ngarga command help:\n\n'
-	"${BINARY_PATH}" --help
-	show_examples
+	install_prepared_binary
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

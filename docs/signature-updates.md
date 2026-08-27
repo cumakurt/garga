@@ -17,7 +17,8 @@ The matching private key is held by maintainers and is not stored in this reposi
 The updater verifies the detached signature, checks the archive digest, extracts into staging
 without following zip paths or symlinks, hashes every file, then runs the same `LoadDir`
 validator used at scan time. Only then does it rename `staging` into `current/`. The previous
-database is kept as `previous/` for one-generation rollback.
+database is kept as `previous/` for one-generation rollback. `garga scan --signatures` and
+`garga vuln --signatures` point at that `current/` directory when CVE matching is required.
 
 ## CLI
 

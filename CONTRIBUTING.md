@@ -17,34 +17,43 @@ or production target details.
 Install Go 1.26 or later, clone the repository, and run:
 
 ```sh
-./run.sh --setup-only
+./install.sh --prefix "$HOME/.local"
 make check
 make test-race
 ```
+
+`./install.sh` and `make install` both copy `garga` to `PREFIX/bin` (default `/usr/local/bin`).
+Writing under `/usr/local` typically requires `sudo`.
 
 The equivalent individual validation commands are:
 
 ```sh
 make fmt-check
-bash -n run.sh tests/run_sh_test.sh
-bash tests/run_sh_test.sh
+bash -n install.sh tests/install_sh_test.sh
+bash tests/install_sh_test.sh
 go vet ./...
 go test ./...
 go test -race ./...
 go test -run='^$' -bench=. -benchmem ./internal/target ./internal/fingerprint ./internal/vulnerability ./internal/report ./internal/scanner
 go build ./...
 go mod tidy -diff
-shellcheck run.sh tests/run_sh_test.sh
+shellcheck install.sh tests/install_sh_test.sh
 make fuzz-smoke
+make lint
+make vulncheck
+make signatures-validate
 make release VERSION=v0.0.0-test
 ```
 
-`shellcheck` is required for launcher changes. `make bench` is opt-in: timings are machine-specific
-and are recorded in [docs/performance.md](docs/performance.md). `make integration` is opt-in:
-it requires Docker, may pull Elasticsearch images, and is documented in
+`shellcheck` is required for installer script changes. `make signatures-validate` is part of `make check`
+and loads committed YAML fixtures. `make lint` downloads a pinned golangci-lint and is
+required for pull requests; it is not part of `make check`. `make bench` is opt-in: timings are
+machine-specific and are recorded in [docs/performance.md](docs/performance.md). `make integration`
+is opt-in: it requires Docker, may pull Elasticsearch images, and is documented in
 [docs/integration.md](docs/integration.md). `make vulncheck` downloads the Go vulnerability
-database and is required before a tagged release. Longer fuzz campaigns remain opt-in and must be
-documented in the pull request when applicable.
+database and is required before a tagged release and in pull-request CI. Run it on Go 1.26.6+ or
+1.27.0+; older 1.26 patch releases report fixed standard-library issues. Longer fuzz campaigns
+remain opt-in and must be documented in the pull request when applicable.
 
 ## Engineering expectations
 

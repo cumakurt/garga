@@ -11,8 +11,9 @@ const (
 	pathNodes   = "/_nodes/_local/http"
 	pathCat     = "/_cat/health"
 	pathIndices = "/_cat/indices"
-	// Authenticate API. GET /_security/user/_authenticate is Get User for that username.
-	pathSecurity = "/_security/_authenticate"
+	// PathAuthenticate is Elasticsearch Authenticate (GET). Get User for username
+	// "_authenticate" is GET /_security/user/_authenticate and returns 404 on a valid session.
+	PathAuthenticate = "/_security/_authenticate"
 )
 
 type probeSpec struct {
@@ -28,17 +29,16 @@ var extraProbes = []probeSpec{
 	{NameNodes, pathNodes},
 	{NameCat, pathCat},
 	{NameIndices, pathIndices},
-	{NameSecurity, pathSecurity},
+	{NameSecurity, PathAuthenticate},
 }
 
-var allowedAPIPaths = map[string]struct{}{
-	pathHealth:   {},
-	pathState:    {},
-	pathNodes:    {},
-	pathCat:      {},
-	pathIndices:  {},
-	pathSecurity: {},
-}
+var allowedAPIPaths = func() map[string]struct{} {
+	set := make(map[string]struct{}, len(extraProbes))
+	for _, spec := range extraProbes {
+		set[spec.path] = struct{}{}
+	}
+	return set
+}()
 
 func joinAPIPath(basePath, apiPath string) (string, error) {
 	if _, allowed := allowedAPIPaths[apiPath]; !allowed {
@@ -55,6 +55,21 @@ func joinAPIPath(basePath, apiPath string) (string, error) {
 		return "", fmt.Errorf("discover capabilities: API path must not include a query or fragment")
 	}
 	return basePath + apiPath, nil
+}
+
+// AllowlistedAPIPaths returns the GET suffixes the product may request after GET /.
+func AllowlistedAPIPaths() []string {
+	paths := make([]string, 0, len(extraProbes))
+	for _, spec := range extraProbes {
+		paths = append(paths, spec.path)
+	}
+	return paths
+}
+
+// IsAllowlistedAPIPath reports whether apiPath is in the GET catalog.
+func IsAllowlistedAPIPath(apiPath string) bool {
+	_, ok := allowedAPIPaths[apiPath]
+	return ok
 }
 
 // ReadOnlyProbe returns the GET path issued for name, if the catalog makes a request.

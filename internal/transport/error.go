@@ -89,7 +89,7 @@ func KindOf(err error) (ErrorKind, bool) {
 
 func classifyRequestError(err error) *Error {
 	cause := stripURLError(err)
-	kind := ErrorNetwork
+	var kind ErrorKind
 
 	switch {
 	case errors.Is(cause, context.Canceled):

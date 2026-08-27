@@ -20,6 +20,7 @@ func TestIntegrationPackageDoesNotImportCLI(t *testing.T) {
 	root := filepath.Dir(file)
 	forbidden := []string{
 		"github.com/cumakurt/garga/internal/cli",
+		"github.com/cumakurt/garga/internal/app",
 		"github.com/cumakurt/garga/internal/scanner",
 		"github.com/cumakurt/garga/internal/update",
 		"github.com/cumakurt/garga/internal/report",

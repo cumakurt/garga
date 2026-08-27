@@ -4,9 +4,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 3.0 |
+| Version | 3.7 |
 | Status | Active |
-| Last updated | 2026-08-26 |
+| Last updated | 2026-08-27 |
 | Product | Elasticsearch security assessment CLI |
 | Implementation language | Go |
 | Primary audience | Maintainers, reviewers, security engineers, and coding agents |
@@ -84,7 +84,14 @@ Work Package 8.2 added signed signature-database updates with Ed25519 verificati
 Work Package 9.1 added structured redacted JSON logs and a bounded-cardinality scanner summary.
 Work Package 9.2 added captured performance baselines. Work Package 10.1 added the opt-in
 Elasticsearch container matrix. Work Package 10.2 added reproducible cross-platform release
-archives, checksums, SBOMs, and the tag-triggered publish workflow.
+archives, checksums, SBOMs, and the tag-triggered publish workflow. Work Package 11.1 added the
+public `garga scan` command and `internal/app` orchestration. Work Package 11.2 added
+`garga fingerprint` for GET-only product identity. Work Package 11.3 added `garga vuln` for
+signature-only matching. Work Package 12.1 added the committed golangci-lint configuration and
+pull-request `govulncheck`. Work Package 12.2 made the shared HTTP transport reject non-GET
+methods and request bodies. Work Package 12.3 made the Elasticsearch GET path catalog the single
+source for Authenticate and extra probes. Work Package 12.4 added `make signatures-validate` for
+committed YAML fixtures.
 
 ### 3.1 Decisions in force
 
@@ -309,8 +316,8 @@ boundaries and acceptance tests are already stable.
 - `version` command with linker-injectable version metadata.
 - Focused unit tests for help, version output, and invalid arguments.
 - Make targets for format checking, vetting, testing, race testing, and building.
-- Idempotent `run.sh` launcher with OS detection, dependency checks, atomic builds, and actionable
-  setup failures.
+- Idempotent `install.sh` installer with OS detection, dependency checks, atomic builds, install
+  to `PREFIX/bin`, and actionable setup failures. It does not run garga commands.
 - Read-only GitHub Actions CI on supported Go versions.
 - README and security policy with explicit authorized-use boundaries.
 
@@ -319,7 +326,7 @@ boundaries and acceptance tests are already stable.
 - `go build ./...`, `go test ./...`, and `go vet ./...` pass.
 - `go test -race ./...` passes.
 - `garga --help` and `garga version` return exit code 0.
-- `run.sh` skips installation/build work for a current binary and exposes launcher/application help.
+- `install.sh` skips installation/build work for a current binary and copies it to `PREFIX/bin`.
 - `garga version unexpected` fails and does not print a credential or environment value.
 - No scanner, network, configuration, or placeholder domain abstraction is introduced.
 
@@ -633,6 +640,124 @@ boundaries and acceptance tests are already stable.
 - Release archives contain the expected license, documentation, and version metadata.
 - All release gates in Section 11 pass from a clean checkout.
 
+#### [x] WP 11.1: Product scan command
+
+**Depends on:** WP 10.2
+
+**Deliverables**
+
+- Public `garga scan` command with target arguments and `--file`.
+- `internal/app` orchestration from targets through fingerprint, capability discovery, checks,
+  optional signatures, and streaming reports.
+- GET-only product requests, no credentials, no credential-audit call path.
+- Exit code `3` for completed scans with operational probe failures.
+- CLI, httptest, isolation, and documentation coverage.
+
+**Acceptance criteria**
+
+- An operator can run a bounded, cancellable scan and obtain findings without changing remote state.
+- Invalid targets and empty input exit `2`. Findings never fail the run.
+- Isolation tests prove scan does not import the credential audit engine or signature updater.
+- `make check` and `make test-race` pass.
+
+#### [x] WP 11.2: Fingerprint command
+
+**Depends on:** WP 11.1
+
+**Deliverables**
+
+- Public `garga fingerprint` command with the same target ingestion as scan.
+- GET `/` only; streamed identity records (console, JSON, JSONL).
+- No capability follow-ups, checks, signatures, or credentials.
+
+**Acceptance criteria**
+
+- Confirmed Elasticsearch identities are emitted without extra API probes.
+- Non-Elasticsearch endpoints emit undetected identities rather than findings.
+- Invalid formats, empty input, partial probe failures, and cancellation match the documented
+  exit codes.
+- `make check` and `make test-race` pass.
+
+#### [x] WP 11.3: Vulnerability command
+
+**Depends on:** WP 11.2
+
+**Deliverables**
+
+- Public `garga vuln` command with required `--signatures`.
+- Signature-only findings through capability-aware evaluation. No TLS/exposure checks.
+- GET-only product requests; potential-only detection.
+
+**Acceptance criteria**
+
+- Matching versions emit `garga.vuln.*` findings without exposure check IDs.
+- Missing or empty signature directories exit `2`.
+- Isolation tests prove the command has no credential-audit call path.
+- `make check` and `make test-race` pass.
+
+#### [x] WP 12.1: Static analysis and vulnerability-scan CI gates
+
+**Depends on:** WP 11.3
+
+**Deliverables**
+
+- Committed golangci-lint v2 configuration and `make lint` with a pinned analyzer version.
+- Pull-request CI jobs for `make lint` and `make vulncheck`.
+- Analyzer and vulnerability tools stay outside the runtime module graph.
+
+**Acceptance criteria**
+
+- `make lint` exits non-zero when the committed configuration reports issues.
+- CI does not add a third-party GitHub Action for linting.
+- `make check` and `make test-race` still pass.
+
+#### [x] WP 12.2: GET-only transport request contract
+
+**Depends on:** WP 12.1
+
+**Deliverables**
+
+- `transport.NewRequest` and `Client.Do` accept only `GET` with no request body.
+- Redirects that would change the method or attach a body are rejected.
+- Tests prove non-GET methods never reach a test server.
+
+**Acceptance criteria**
+
+- POST, PUT, PATCH, DELETE, HEAD, empty method, and GET bodies fail as `invalid_request`.
+- GET probe, credential, update, and scan paths remain successful.
+- `make check` and `make test-race` pass.
+
+#### [x] WP 12.3: Shared Elasticsearch GET path catalog
+
+**Depends on:** WP 12.2
+
+**Deliverables**
+
+- Extra-probe catalog is the single source of GET API suffixes.
+- Credential verification uses `capability.PathAuthenticate`.
+- Tests reject Get User `/_security/user/_authenticate`.
+
+**Acceptance criteria**
+
+- The allowlist cannot drift from the extra-probe catalog.
+- `auth-check` and capability discovery share the Authenticate path.
+- `make check` and `make test-race` pass.
+
+#### [x] WP 12.4: Signature fixture validation in CI
+
+**Depends on:** WP 12.3
+
+**Deliverables**
+
+- `scripts/validate-signatures` loads a directory through `vulnerability.LoadDir`.
+- `make signatures-validate` and a pull-request CI step against committed fixtures.
+
+**Acceptance criteria**
+
+- Valid fixtures load; invalid YAML exits `2` with file context.
+- The validator does not import Cobra or the CLI.
+- `make check` and `make test-race` pass.
+
 ## 8. Testing strategy
 
 | Layer | Purpose | Required tools |
@@ -666,8 +791,9 @@ Pull-request CI runs:
 3. `go test ./...` on Go 1.26 and Go 1.27;
 4. `go test -race ./...` on the primary CI version;
 5. `go build ./...`;
-6. signature validation once signatures exist;
-7. `golangci-lint run` once a repository configuration is committed.
+6. `make signatures-validate` against committed YAML fixtures;
+7. `make lint` with the committed `.golangci.yml`;
+8. `make vulncheck`.
 
 Integration and fuzz campaigns run separately because their resource and time profiles differ.
 The Elasticsearch container matrix is `make integration` / `workflow_dispatch` on
@@ -711,7 +837,7 @@ Review findings are handled in this order:
 
 ### Functional
 
-- All work packages through WP 10.2 are complete.
+- All work packages through WP 12.4 are complete.
 - Target parsing, scanning, fingerprinting, checks, vulnerability matching, updates, and reporters
   meet their acceptance criteria.
 - Exit codes and machine-output schemas are documented and regression-tested.
@@ -756,8 +882,10 @@ Risk entries are reviewed when a work package changes probability, impact, or mi
 
 ## 13. Immediate execution queue
 
-1. Preserve the tested transport/scanner safety boundaries in every product-specific request.
-2. Do not add a `scan` CLI until a later, explicit work package defines that public command.
+1. Adding an Elasticsearch product GET still requires a catalog entry in `internal/capability`
+   and an active-safe test. Do not duplicate Authenticate as Get User.
+2. The planned v1 CLI tree is implemented. Do not add authenticated scan or extra product
+   commands until a later, explicit work package defines them.
 
 The implementation cadence is always:
 

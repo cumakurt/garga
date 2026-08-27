@@ -35,6 +35,15 @@ func TestExecuteHelp(t *testing.T) {
 	if !strings.Contains(stdout.String(), "Usage:") {
 		t.Errorf("help output %q does not contain Usage section", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "scan") {
+		t.Errorf("help output %q does not list scan command", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "fingerprint") {
+		t.Errorf("help output %q does not list fingerprint command", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "vuln") {
+		t.Errorf("help output %q does not list vuln command", stdout.String())
+	}
 	if !strings.Contains(stdout.String(), "version") {
 		t.Errorf("help output %q does not list version command", stdout.String())
 	}

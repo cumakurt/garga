@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -116,6 +117,9 @@ func readZipFile(entry *zip.File) ([]byte, error) {
 		return nil, fmt.Errorf("%w: open archive entry", ErrArchive)
 	}
 	defer reader.Close()
+	if entry.UncompressedSize64 > uint64(math.MaxInt64) {
+		return nil, fmt.Errorf("%w: archive entry is too large", ErrArchive)
+	}
 	limit := int64(entry.UncompressedSize64)
 	if limit < 1 {
 		limit = 1
@@ -124,7 +128,7 @@ func readZipFile(entry *zip.File) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: read archive entry", ErrArchive)
 	}
-	if int64(len(data)) != int64(entry.UncompressedSize64) {
+	if uint64(len(data)) != entry.UncompressedSize64 {
 		return nil, fmt.Errorf("%w: archive entry size mismatch", ErrArchive)
 	}
 	return data, nil

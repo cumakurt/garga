@@ -24,6 +24,6 @@ name. Prometheus was not added: there is no scrape endpoint in v1.
 
 ## Consequences
 
-A future `scan` command can attach the logger to scanner options without changing the summary
+`garga scan` attaches the logger to scanner options without changing the summary
 schema. Adding host or URL attributes to info logs or using them as metric labels is a contract
 break. Debug volume on large scans is an explicit operator choice.

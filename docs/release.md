@@ -29,8 +29,8 @@ AGPL-3.0-only module.
 
 ## Cut a release from a clean checkout
 
-1. Confirm Section 11 gates: `make check`, `make test-race`, `make fuzz-smoke`, and
-   `make vulncheck`.
+1. Confirm Section 11 gates: `make check`, `make test-race`, `make lint`, `make fuzz-smoke`, and
+   `make vulncheck` (on Go 1.26.6+ or 1.27.0+). `make check` includes `make signatures-validate`.
 2. Update [CHANGELOG.md](../CHANGELOG.md) and [SECURITY.md](../SECURITY.md) supported versions.
 3. Tag `vX.Y.Z` and push the tag. The `Release` workflow builds `dist/` and publishes a GitHub
    Release.
