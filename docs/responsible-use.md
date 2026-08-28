@@ -32,6 +32,10 @@ brute-force, and dictionary modes. None of these commands accepts a `--password`
 `garga scan` and `garga vuln` remain bound to the same GET-only, non-state-changing contract.
 They do not send credentials.
 
+`garga secrets` inspects authorized cluster mappings and a bounded document sample. It does not
+export indices. Use it only with valid access to in-scope clusters. Default reports mask
+secrets; treat the PDF artifact as confidential.
+
 ## Handling output
 
 Reports, logs, and signature databases can describe exposed services. Store them as sensitive

@@ -64,3 +64,10 @@ and they are never written to logs, snapshots, or reports. Credentials over HTTP
 unless `--allow-plaintext-auth` is set; that override is reported as a critical finding.
 
 Details: [health.md](health.md).
+
+## Sensitive-data scanner credentials
+
+`garga secrets` sends one optional credential on allowlisted GET APIs and `POST /_search`.
+Pass the environment variable *name* with `--password-env`, `--api-key-env`, or
+`--bearer-token-env`. The password value never appears on the command line. Details:
+[sensitive-data-scanner.md](sensitive-data-scanner.md).

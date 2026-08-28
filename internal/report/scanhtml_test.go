@@ -225,6 +225,77 @@ func TestWithPDFArtifactKeepsPrimaryFormatAndWritesFile(t *testing.T) {
 	}
 }
 
+func TestWriteTimestampedScanPDFIncludesExploitableFindings(t *testing.T) {
+	t.Chdir(t.TempDir())
+	cvss := 10.0
+	findings := []model.Finding{
+		{
+			CheckID:     "garga.exposure.anonymous_access",
+			Title:       "Elasticsearch likely allows unauthenticated cluster administration",
+			Description: "Security APIs are unavailable and cluster APIs responded without credentials.",
+			Target:      model.Endpoint{Scheme: model.SchemeHTTP, Host: "192.0.2.10", Port: 9200},
+			Product:     "elasticsearch",
+			Version:     "7.10.0",
+			Severity:    model.SeverityCritical,
+			Confidence:  model.ConfidenceMedium,
+			Tags:        []string{"exposure", "authentication", "admin", "inferred", "exploitable"},
+			Evidence:    []model.Evidence{{Code: "class_admin_inferred", Summary: "Admin access is inferred from missing security APIs plus unauthenticated cluster APIs."}},
+			Remediation: "Enable Elasticsearch security features and require authentication for HTTP APIs.",
+		},
+		{
+			CheckID:     "garga.vuln.cve-2021-44228",
+			Title:       "Apache Log4j2 message lookup vulnerabilities in Elasticsearch",
+			Description: "Elasticsearch versions containing affected Log4j2 components can expose information and, on older JDK and Elasticsearch combinations, permit remote code execution.",
+			Target:      model.Endpoint{Scheme: model.SchemeHTTP, Host: "192.0.2.10", Port: 9200},
+			Product:     "elasticsearch",
+			Version:     "7.10.0",
+			Severity:    model.SeverityCritical,
+			Confidence:  model.ConfidenceLow,
+			CVE:         []string{"CVE-2021-44228"},
+			CVSS:        &cvss,
+			Tags:        []string{"potential"},
+			References:  []string{"https://www.cisa.gov/known-exploited-vulnerabilities-catalog"},
+			Remediation: "Upgrade to a vendor-fixed Elasticsearch release.",
+		},
+		{
+			CheckID:     "garga.tls.not_enabled",
+			Title:       "Elasticsearch is exposed without TLS",
+			Description: "The service was reached over HTTP.",
+			Target:      model.Endpoint{Scheme: model.SchemeHTTP, Host: "192.0.2.10", Port: 9200},
+			Product:     "elasticsearch",
+			Version:     "7.10.0",
+			Severity:    model.SeverityHigh,
+			Confidence:  model.ConfidenceHigh,
+			Evidence:    []model.Evidence{{Code: "scheme_http", Summary: "The Elasticsearch endpoint used the HTTP scheme."}},
+			Remediation: "Enable TLS on the Elasticsearch HTTP interface.",
+		},
+	}
+	path, err := WriteTimestampedScanPDF(findings, ProbeCoverage{Submitted: 6, Succeeded: 6}, "garga/test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.HasPrefix(payload, []byte("%PDF")) {
+		t.Fatalf("artifact is not a PDF: %q", path)
+	}
+	body := string(payload)
+	for _, needle := range []string{
+		"EXPLOITABLE",
+		"unauthenticated cluster administration",
+		"CVE-2021-44228",
+		"2 exploitable-class",
+		"garga.exposure.anonymous_access",
+		"garga.vuln.cve-2021-44228",
+	} {
+		if !strings.Contains(body, needle) {
+			t.Errorf("PDF missing %q", needle)
+		}
+	}
+}
+
 func TestNarrativeExplainsAnonymousAdminCost(t *testing.T) {
 	t.Parallel()
 	finding := model.Finding{

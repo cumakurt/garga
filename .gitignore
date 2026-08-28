@@ -1,11 +1,17 @@
 /bin/
 /dist/
+/build/
 /coverage.out
 /garga
 *.prof
 *.test
+__pycache__/
+*.pyc
 AGENTS.md
 /garga-health-*.html
 /garga-health-*.pdf
 /garga-scan-*.html
 /garga-scan-*.pdf
+/garga-assessment-*.html
+/garga-assessment-*.pdf
+/garga-secrets-*.pdf

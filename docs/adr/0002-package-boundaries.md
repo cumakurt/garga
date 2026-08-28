@@ -41,6 +41,9 @@ Application code lives under `internal/`; garga does not expose a library API in
   `garga assess`.
   Collectors own Elasticsearch I/O; checkers receive a normalized snapshot and perform no network
   requests. It does not import Cobra or `internal/app`.
+- `internal/secrets` is the isolated opt-in sensitive-data discovery engine used by `garga secrets`.
+  It samples documents through allowlisted GET metadata APIs and `POST /_search` only, and is not
+  used by scan, health, or credential-audit commands.
 - `internal/lifecycle`, `internal/evidence`, and `internal/forecast` implement bounded offline
   comparison, evidence integrity, and capacity projection workflows.
 - `internal/integration` holds opt-in Elasticsearch container tests. It is not imported by the CLI or scanner.

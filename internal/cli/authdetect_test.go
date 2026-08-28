@@ -294,6 +294,10 @@ func TestAuthDetectBruteForceCharset(t *testing.T) {
 		}
 		usernames = append(usernames, username)
 		passwords = append(passwords, password)
+		if username == "elastic" && password == "b" {
+			writer.WriteHeader(http.StatusOK)
+			return
+		}
 		writer.WriteHeader(http.StatusUnauthorized)
 	}))
 	defer server.Close()
@@ -328,8 +332,15 @@ func TestAuthDetectBruteForceCharset(t *testing.T) {
 	if len(passwords) != 2 || passwords[0] != "a" || passwords[1] != "b" {
 		t.Fatalf("passwords = %#v", passwords)
 	}
-	if !strings.Contains(stdout.String(), "mode=brute-force") {
-		t.Fatalf("stdout = %q", stdout.String())
+	output := stdout.String()
+	if !strings.Contains(output, "mode=brute-force") {
+		t.Fatalf("stdout = %q", output)
+	}
+	if !strings.Contains(output, "outcome="+string(credential.OutcomeValid)) {
+		t.Fatalf("stdout missing valid detection: %q", output)
+	}
+	if !strings.Contains(output, "reason="+string(detect.StopSuccess)) || !strings.Contains(output, "valid=1") {
+		t.Fatalf("stdout missing success summary: %q", output)
 	}
 }
 
@@ -341,6 +352,10 @@ func TestAuthDetectSprayingFromFiles(t *testing.T) {
 			t.Fatal("missing basic auth")
 		}
 		seen = append(seen, username+":"+password)
+		if username == "bob" && password == "p1" {
+			writer.WriteHeader(http.StatusOK)
+			return
+		}
 		writer.WriteHeader(http.StatusUnauthorized)
 	}))
 	defer server.Close()
@@ -359,6 +374,7 @@ func TestAuthDetectSprayingFromFiles(t *testing.T) {
 		t.Fatalf("WriteFile(passwords) error = %v", err)
 	}
 
+	var stdout bytes.Buffer
 	exitCode := Execute(
 		context.Background(),
 		[]string{
@@ -370,13 +386,13 @@ func TestAuthDetectSprayingFromFiles(t *testing.T) {
 		},
 		BuildInfo{Version: "test"},
 		strings.NewReader(""),
-		&bytes.Buffer{},
+		&stdout,
 		&bytes.Buffer{},
 	)
 	if exitCode != ExitSuccess {
-		t.Fatalf("exit code = %d", exitCode)
+		t.Fatalf("exit code = %d stdout=%q", exitCode, stdout.String())
 	}
-	want := []string{"alice:p1", "bob:p1", "alice:p2", "bob:p2"}
+	want := []string{"alice:p1", "bob:p1"}
 	if len(seen) != len(want) {
 		t.Fatalf("seen = %#v, want %#v", seen, want)
 	}
@@ -384,6 +400,13 @@ func TestAuthDetectSprayingFromFiles(t *testing.T) {
 		if seen[index] != expected {
 			t.Fatalf("seen[%d] = %q, want %q", index, seen[index], expected)
 		}
+	}
+	output := stdout.String()
+	if !strings.Contains(output, "outcome="+string(credential.OutcomeValid)) {
+		t.Fatalf("stdout missing valid detection: %q", output)
+	}
+	if !strings.Contains(output, "reason="+string(detect.StopSuccess)) || !strings.Contains(output, "usernames=bob") {
+		t.Fatalf("stdout missing success summary: %q", output)
 	}
 }
 

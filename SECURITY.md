@@ -10,7 +10,9 @@ The project must remain safe by default. A normal scan must not exploit vulnerab
 cluster state, modify data, or perform credential spraying. Credential audit is isolated as
 `garga auth-audit`: it is explicit, rate-limited, attempt-limited, cancellable, and redacted.
 Technique-specific username and password detection is isolated as `garga auth-detect` with the
-same GET-only authenticate contract and additional attempt ceilings.
+same GET-only authenticate contract and additional attempt ceilings. Sensitive-data discovery is
+isolated as `garga secrets`: it samples documents through allowlisted GET APIs and
+`POST /_search` only, never writes cluster state, and masks secrets in default reports.
 
 ## Reporting a vulnerability
 
@@ -41,8 +43,9 @@ report or test fixture.
 - Prefer secret input through standard input or a local list file whose contents are not logged.
   `garga auth-check` accepts `--password-stdin` and `--api-key-stdin`. `garga auth-audit` accepts
   `--credentials-stdin`. `garga auth-detect` accepts stdin or `--credentials-file` / `--wordlist`
-  / `--users-file` / `--passwords-file`. None of these commands provides a `--password` flag;
-  command-line passwords may be visible in process listings.
+  / `--users-file` / `--passwords-file`. `garga secrets` reads credentials from environment
+  variables named by `--password-env`, `--api-key-env`, or `--bearer-token-env`. None of these
+  commands provides a `--password` flag; command-line passwords may be visible in process listings.
 - Stop and investigate if observed traffic differs from the documented non-destructive behavior.
 
 ## Supported versions

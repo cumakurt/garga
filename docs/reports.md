@@ -106,3 +106,15 @@ garga evidence verify signed-assessment.zip --public-key assessment-public.pem
 Bundles accept at most 32 regular non-symlink artifacts, 64 MiB per artifact, and 256 MiB total.
 Verification rejects path traversal, duplicate and undeclared entries, decompression-size
 mismatches, malformed manifests, digest changes, key-ID mismatches, and invalid signatures.
+
+## Example PDF reports
+
+Checked-in sample PDFs from an authorized Docker Elasticsearch 8.19.20 demo live under
+[`sample/`](../sample/README.md):
+
+- [`sample/garga-scan-sample.pdf`](../sample/garga-scan-sample.pdf) — anonymous GET-only scan with an EXPLOITABLE unauthenticated-admin finding
+- [`sample/garga-health-sample.pdf`](../sample/garga-health-sample.pdf)
+- [`sample/garga-assessment-sample.pdf`](../sample/garga-assessment-sample.pdf)
+- [`sample/garga-secrets-sample.pdf`](../sample/garga-secrets-sample.pdf)
+
+The secrets sample is synthetic fixture data only. Do not treat it as a production credential dump.

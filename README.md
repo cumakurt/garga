@@ -23,6 +23,8 @@ release documents them as such.
 
 - [Safety boundary](#safety-boundary)
 - [What garga does](#what-garga-does)
+- [Screenshots](#screenshots)
+- [Example PDF reports](#example-pdf-reports)
 - [Requirements](#requirements)
 - [Install](#install)
 - [Commands](#commands)
@@ -60,6 +62,8 @@ Credential work is isolated:
   dictionary assessments with stdin or local list-file secrets;
 - `garga assess` and `garga health` accept at most one explicitly selected credential and never
   invoke the credential-audit or credential-detection engines;
+- `garga secrets` is a separate opt-in read-only sensitive-data discovery mode for authorized
+  clusters; console and machine-readable reports are masked;
 - none of these commands accepts a `--password` flag;
 - YAML configuration and `GARGA_*` variables never hold secrets.
 
@@ -80,6 +84,7 @@ Implemented operator commands:
 | `garga auth-check` | One credential, `GET /_security/_authenticate` |
 | `garga auth-audit` | Explicit bounded credential audit |
 | `garga auth-detect` | Explicit bounded credential stuffing, spraying, brute-force, and dictionary detection |
+| `garga secrets` | Authorized read-only sensitive-data discovery in mappings and sampled documents |
 | `garga report` | Offline JSONL to console, JSON, JSONL, CSV, HTML, SARIF, or CycloneDX VEX |
 | `garga diff` | Offline finding lifecycle and risk regression comparison |
 | `garga evidence` | Deterministic SHA-256 evidence bundles with optional Ed25519 signing |
@@ -101,6 +106,129 @@ Supporting behavior already in the binary:
 
 garga does **not** provide exploitation, writes, a web UI, distributed scanning, or products
 other than Elasticsearch.
+
+## Screenshots
+
+The captures below come from authorized Docker Elasticsearch **8.19.20** demos on loopback:
+
+- **19201** — security disabled, used for anonymous `fingerprint`, `scan`, and `vuln`
+- **19200** — security enabled, used for credentials, `health`, `assess`, and `secrets`
+
+Passwords are redacted. Reproduce the gallery with `scripts/docker-feature-demo.sh` after `make build`.
+
+### Identity and anonymous assessment
+
+<p align="center">
+  <img src="docs/screenshots/version.png" alt="garga version" width="720">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/help.png" alt="garga help" width="720">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/fingerprint.png" alt="garga fingerprint against Docker Elasticsearch" width="720">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/scan.png" alt="garga scan console report with EXPLOITABLE anonymous admin access" width="720">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/vuln.png" alt="garga vuln signature matching" width="720">
+</p>
+
+### Credentials
+
+<p align="center">
+  <img src="docs/screenshots/auth-check.png" alt="garga auth-check valid credential" width="720">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/auth-check-invalid.png" alt="garga auth-check rejected credential" width="720">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/auth-audit.png" alt="garga auth-audit bounded credential list" width="720">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/auth-detect.png" alt="garga auth-detect stuffing mode finding a valid credential" width="720">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/auth-detect-spraying.png" alt="garga auth-detect spraying mode finding a valid credential" width="720">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/auth-detect-dictionary.png" alt="garga auth-detect dictionary mode finding a valid credential" width="720">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/auth-detect-brute-force.png" alt="garga auth-detect brute-force mode finding a valid credential" width="720">
+</p>
+
+### Authenticated assessment and secrets
+
+<p align="center">
+  <img src="docs/screenshots/health.png" alt="garga health terminal report" width="720">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/assess.png" alt="garga assess JSON report" width="720">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/secrets-generate.png" alt="garga secrets generate synthetic fixtures" width="720">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/secrets.png" alt="garga secrets discovery summary against the full synthetic corpus" width="720">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/secrets-table.png" alt="garga secrets masked findings table" width="720">
+</p>
+
+### Offline reports, evidence, and updates
+
+<p align="center">
+  <img src="docs/screenshots/report.png" alt="garga report CSV conversion" width="720">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/diff.png" alt="garga diff finding lifecycle" width="720">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/forecast.png" alt="garga forecast disk thresholds" width="720">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/evidence-pack.png" alt="garga evidence pack" width="720">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/evidence-verify.png" alt="garga evidence verify" width="720">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/update.png" alt="garga update rejecting an unsigned signature bundle" width="720">
+</p>
+
+## Example PDF reports
+
+Timestamped PDFs from the same Docker demo are stored under [`sample/`](sample/README.md):
+
+| Report | Sample |
+|---|---|
+| Scan (`garga scan`) | [sample/garga-scan-sample.pdf](sample/garga-scan-sample.pdf) |
+| Health (`garga health`) | [sample/garga-health-sample.pdf](sample/garga-health-sample.pdf) |
+| Assessment (`garga assess`) | [sample/garga-assessment-sample.pdf](sample/garga-assessment-sample.pdf) |
+| Secrets (`garga secrets`) | [sample/garga-secrets-sample.pdf](sample/garga-secrets-sample.pdf) |
+
+The secrets sample is synthetic fixture data from `garga secrets generate`. Console and
+machine-readable secrets output stay masked; the PDF is the confidential engagement artifact.
 
 ## Requirements
 
@@ -367,6 +495,24 @@ garga auth-detect https://es.example.internal:9200 --mode dictionary \
 
 Details: [docs/credential-detect.md](docs/credential-detect.md).
 
+### `garga secrets`
+
+Discover sensitive values in authorized Elasticsearch mappings and a bounded document sample.
+The command is read-only. Console, JSON, JSONL, table, and SARIF output are masked. A
+timestamped PDF in the current directory includes recovered secret values except private keys
+and password hashes.
+
+```sh
+export ES_PASSWORD='...'
+garga secrets --target https://es.example.internal:9200 \
+  --user elastic --password-env ES_PASSWORD --format table
+
+garga secrets --target https://es.example.internal:9200 \
+  --user elastic --password-env ES_PASSWORD --deep-scan --format json
+```
+
+Details: [docs/sensitive-data-scanner.md](docs/sensitive-data-scanner.md).
+
 ### `garga report`
 
 Offline. Reads JSONL findings (stdin or `--input`) and writes console, JSON, JSONL, CSV,
@@ -578,12 +724,14 @@ Roadmap and acceptance criteria: [garga-MASTER-PLAN.md](garga-MASTER-PLAN.md).
 | Credentials | [docs/credentials.md](docs/credentials.md) |
 | Credential audit | [docs/credential-audit.md](docs/credential-audit.md) |
 | Credential detection | [docs/credential-detect.md](docs/credential-detect.md) |
+| Sensitive data scanner | [docs/sensitive-data-scanner.md](docs/sensitive-data-scanner.md) |
 | Signatures | [docs/signatures.md](docs/signatures.md) |
 | Signature updates | [docs/signature-updates.md](docs/signature-updates.md) |
-| Reports | [docs/reports.md](docs/reports.md) |
+| Reports | [docs/reports.md](docs/reports.md), [sample/README.md](sample/README.md) |
 | Logs | [docs/observability.md](docs/observability.md) |
 | Performance | [docs/performance.md](docs/performance.md) |
 | Integration matrix | [docs/integration.md](docs/integration.md) |
+| Screenshots | [Screenshots](#screenshots) |
 | Releases | [docs/release.md](docs/release.md) |
 | Architecture decisions | [docs/adr](docs/adr) |
 | Changelog | [CHANGELOG.md](CHANGELOG.md) |

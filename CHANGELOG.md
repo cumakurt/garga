@@ -12,6 +12,16 @@ All notable changes to garga are documented in this file.
   `--users-file`, `--credentials-file`). Brute-force may generate a bounded charset product.
   Stuffing accepts leak-style `user:pass` pairs. Spraying uses a password-outer loop and optional
   `--spray-delay`.
+- `garga secrets --deep-scan` for an explicit, still-bounded higher-coverage profile: larger
+  per-index samples, generic keyword/text `_source` fields, deeper object/array walks, and a
+  broader correlation alias list. Hard caps remain. Credential correlation reports same-object
+  pairs (`username`+`password`, client credentials, access-key pairs, database/API/token pairs,
+  connection strings, HTTP Basic/Bearer) with `related_fields`, `masked_values`, and occurrence
+  counts. JSON includes `scan_mode` and examination stats. PIT search is not used.
+- README screenshots from an authorized Docker Elasticsearch 8.19.20 demo, plus example PDF
+  reports under `sample/`. The scan sample PDF is produced from an anonymous (security-disabled)
+  node and includes an EXPLOITABLE unauthenticated-admin finding. Auth-detect screenshots show a
+  successful credential detection in stuffing, spraying, dictionary, and brute-force modes.
 - `garga assess`, an authenticated-capable GET-only security assessment that combines the health
   engine with version, node JDK, module/plugin, realm, safe-setting, and signature applicability
   evidence. Runtime prerequisites distinguish `applicable` findings from version-only
@@ -69,6 +79,9 @@ All notable changes to garga are documented in this file.
 - `make install` copies the rebuilt `garga` binary to `$(PREFIX)/bin` (default `/usr/local/bin`).
 
 ### Changed
+
+- `garga secrets` document sampling sorts on `_doc` so Elasticsearch 8+/9 clusters can be
+  scanned without enabling `_id` fielddata. Sampling failures are logged at warn.
 
 - The minimum build toolchain is Go 1.26.6 so release binaries include the standard-library
   security fixes required by `govulncheck`.

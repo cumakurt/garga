@@ -63,3 +63,15 @@ with `[redacted]`. Response bodies and cluster identifiers are not dumped.
 health, config, model, and target. It must not import Cobra, `internal/cli`, `internal/app`, the scanner,
 reporters, or the signature updater. Live matrix tests exercise packages directly rather than
 spawning `garga scan`.
+
+## Operator CLI demo against Docker
+
+`scripts/docker-feature-demo.sh` drives the installed `bin/garga` binary against local
+Elasticsearch 8.19.20 containers:
+
+- `127.0.0.1:19201` — security disabled (anonymous `fingerprint`, `scan`, `vuln`)
+- `127.0.0.1:19200` — security enabled (credentials, `health`, `assess`, `secrets`)
+
+It captures terminal screenshots under `docs/screenshots/` and copies example PDFs to
+`sample/`. Set `GARGA_DEMO_PASSWORD` to the secured container `elastic` password before
+running it. The script redacts that password from logs and screenshots.

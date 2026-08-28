@@ -426,6 +426,10 @@ func TestScanDefaultLogLevelOmitsDebugAndInfoRecords(t *testing.T) {
 
 func TestScanWritesTimestampedPDFReport(t *testing.T) {
 	clearProxyEnv(t)
+	sourceYAML, err := os.ReadFile(filepath.Join("..", "vulnerability", "bundled", "cve-2021-44228.yaml"))
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
 	reportDirectory := t.TempDir()
 	t.Chdir(reportDirectory)
 
@@ -438,12 +442,17 @@ func TestScanWritesTimestampedPDFReport(t *testing.T) {
 		}
 		writer.WriteHeader(http.StatusOK)
 		if request.URL.Path == "/" || request.URL.Path == "" {
-			_, _ = io.WriteString(writer, elasticsearchScanBody)
+			_, _ = io.WriteString(writer, strings.Replace(elasticsearchScanBody, "8.19.19", "7.10.0", 1))
 			return
 		}
 		_, _ = io.WriteString(writer, `{"status":"green"}`)
 	}))
 	t.Cleanup(server.Close)
+
+	signatureDirectory := t.TempDir()
+	if err := os.WriteFile(filepath.Join(signatureDirectory, "cve-2021-44228.yaml"), sourceYAML, 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	configPath := filepath.Join(t.TempDir(), "garga.yaml")
 	if err := os.WriteFile(configPath, []byte("scanner:\n  retries: 0\n"), 0o600); err != nil {
@@ -453,7 +462,7 @@ func TestScanWritesTimestampedPDFReport(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	exitCode := Execute(
 		context.Background(),
-		[]string{"scan", server.URL, "--format", "jsonl", "--no-signatures", "--config", configPath},
+		[]string{"scan", server.URL, "--format", "jsonl", "--signatures", signatureDirectory, "--config", configPath},
 		BuildInfo{Version: "test"},
 		strings.NewReader(""),
 		&stdout,
@@ -462,12 +471,21 @@ func TestScanWritesTimestampedPDFReport(t *testing.T) {
 	if exitCode != ExitSuccess {
 		t.Fatalf("exit code = %d; stderr = %q", exitCode, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), `"check_id":"garga.tls.not_enabled"`) {
-		t.Fatalf("stdout lost jsonl findings: %q", stdout.String())
+	out := stdout.String()
+	for _, needle := range []string{
+		`"check_id":"garga.exposure.anonymous_access"`,
+		`"check_id":"garga.tls.not_enabled"`,
+		`"check_id":"garga.vuln.cve-2021-44228"`,
+		`"exploitable"`,
+		`"admin"`,
+	} {
+		if !strings.Contains(out, needle) {
+			t.Fatalf("stdout missing %s: %q", needle, out)
+		}
 	}
-	htmlArtifacts, err := filepath.Glob(filepath.Join(reportDirectory, "garga-scan-*.html"))
-	if err != nil {
-		t.Fatalf("Glob() error = %v", err)
+	htmlArtifacts, globErr := filepath.Glob(filepath.Join(reportDirectory, "garga-scan-*.html"))
+	if globErr != nil {
+		t.Fatalf("Glob() error = %v", globErr)
 	}
 	if len(htmlArtifacts) != 0 {
 		t.Fatalf("default scan wrote HTML artifacts = %v", htmlArtifacts)
@@ -477,7 +495,10 @@ func TestScanWritesTimestampedPDFReport(t *testing.T) {
 		"1. Executive summary",
 		"1. F-",
 		"Field",
+		"EXPLOITABLE",
+		"garga.exposure.anonymous_access",
 		"garga.tls.not_enabled",
+		"CVE-2021-44228",
 		"https://www.linkedin.com/in/cuma-kurt-34414917/",
 		"https://github.com/cumakurt",
 	})
