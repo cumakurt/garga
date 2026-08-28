@@ -8,10 +8,11 @@ import (
 func TestSyntheticDocumentsCoverDetectors(t *testing.T) {
 	t.Parallel()
 	limits := walkLimits{
-		maxDepth:      DefaultMaxDepth,
-		maxArrayItems: DefaultMaxArrayItems,
-		maxObjectSize: DefaultMaxObjectSize,
-		maxFieldBytes: DefaultMaxFieldBytes,
+		maxDepth:       DefaultMaxDepth,
+		maxArrayItems:  DefaultMaxArrayItems,
+		maxObjectSize:  DefaultMaxObjectSize,
+		maxFieldBytes:  DefaultMaxFieldBytes,
+		entropyEnabled: true,
 	}
 	seen := map[string]int{}
 	for _, document := range SyntheticDocuments() {
@@ -66,10 +67,11 @@ func TestSyntheticDocumentsCoverDetectors(t *testing.T) {
 func TestFalsePositiveDocumentsStayLowRisk(t *testing.T) {
 	t.Parallel()
 	limits := walkLimits{
-		maxDepth:      DefaultMaxDepth,
-		maxArrayItems: DefaultMaxArrayItems,
-		maxObjectSize: DefaultMaxObjectSize,
-		maxFieldBytes: DefaultMaxFieldBytes,
+		maxDepth:       DefaultMaxDepth,
+		maxArrayItems:  DefaultMaxArrayItems,
+		maxObjectSize:  DefaultMaxObjectSize,
+		maxFieldBytes:  DefaultMaxFieldBytes,
+		entropyEnabled: true,
 	}
 	for _, document := range FalsePositiveDocuments() {
 		for _, item := range walkDocument(document.Source, limits) {

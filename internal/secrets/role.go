@@ -20,7 +20,7 @@ const (
 	RoleConsumerKey       FieldRole = "consumer_key"
 	RoleConsumerSecret    FieldRole = "consumer_secret"
 	RoleOAuthClientID     FieldRole = "oauth_client_id"
-	RoleOAuthClientSecret FieldRole = "oauth_client_secret"
+	RoleOAuthClientSecret FieldRole = "oauth_client_secret" //nolint:gosec // Semantic field-role name, not a credential.
 	RoleDBUser            FieldRole = "database_user"
 	RoleDBPassword        FieldRole = "database_password"
 	RoleSMTPUser          FieldRole = "smtp_user"

@@ -2,7 +2,10 @@ package secrets
 
 import "time"
 
-const SchemaVersion = "1.0"
+const SchemaVersion = "1.1"
+
+// MaxReportFindings bounds retained canonical findings for one scan.
+const MaxReportFindings = 10000
 
 // Confidence is the reporting certainty of a finding.
 type Confidence string
@@ -18,18 +21,18 @@ const (
 type Severity string
 
 const (
-	SeverityInfo     Severity = "info"
-	SeverityLow      Severity = "low"
-	SeverityMedium   Severity = "medium"
-	SeverityHigh     Severity = "high"
-	SeverityCritical Severity = "critical"
+	SeverityInfo     Severity = "INFO"
+	SeverityLow      Severity = "LOW"
+	SeverityMedium   Severity = "MEDIUM"
+	SeverityHigh     Severity = "HIGH"
+	SeverityCritical Severity = "CRITICAL"
 )
 
-// Finding is one deduplicated sensitive-data observation.
-// Secret is omitted from JSON, JSONL, SARIF, and table output. The PDF artifact
-// may include it. Private keys, password hashes, and correlation findings leave
-// Secret empty.
+// Finding is one deduplicated, report-safe sensitive-data observation. Raw
+// discovered values never enter this canonical model.
 type Finding struct {
+	ID             string            `json:"id"`
+	Title          string            `json:"title"`
 	Target         string            `json:"target"`
 	Cluster        string            `json:"cluster"`
 	Index          string            `json:"index"`
@@ -45,9 +48,13 @@ type Finding struct {
 	MaskedPreview  string            `json:"masked_preview"`
 	MaskedValues   map[string]string `json:"masked_values,omitempty"`
 	Reason         string            `json:"reason"`
+	Remediation    string            `json:"remediation"`
 	Timestamp      time.Time         `json:"timestamp"`
 	Occurrences    int               `json:"occurrences"`
-	Secret         string            `json:"-"`
+
+	// dedupFingerprint is an ephemeral keyed digest. Engine.Scan clears it before
+	// the finding enters Result.
+	dedupFingerprint string
 }
 
 // TargetReport describes one Elasticsearch endpoint after a scan attempt.
@@ -63,6 +70,7 @@ type TargetReport struct {
 	DocumentsExamined int    `json:"documents_examined,omitempty"`
 	FieldsExamined    int    `json:"fields_examined,omitempty"`
 	BytesExamined     int64  `json:"bytes_examined,omitempty"`
+	FindingsTruncated bool   `json:"findings_truncated,omitempty"`
 	Error             string `json:"error,omitempty"`
 }
 
@@ -79,6 +87,8 @@ type Summary struct {
 	Findings           int            `json:"findings"`
 	FieldFindings      int            `json:"field_findings"`
 	CorrelatedFindings int            `json:"correlated_findings"`
+	Occurrences        int            `json:"occurrences"`
+	FindingsTruncated  bool           `json:"findings_truncated"`
 	SeverityCounts     map[string]int `json:"severity_counts"`
 	CategoryCounts     map[string]int `json:"category_counts"`
 	CorrelationCounts  map[string]int `json:"correlation_counts,omitempty"`
@@ -95,13 +105,17 @@ type IndexCount struct {
 	Count int    `json:"count"`
 }
 
-// Result is the complete scan output used by reporters.
-type Result struct {
+// ScanReport is the canonical, report-safe output shared by every renderer.
+type ScanReport struct {
 	SchemaVersion string         `json:"schema_version"`
 	Summary       Summary        `json:"summary"`
 	Targets       []TargetReport `json:"targets"`
 	Findings      []Finding      `json:"findings"`
 }
+
+// Result preserves the pre-1.1 internal name while all renderers migrate to
+// the explicit canonical ScanReport name.
+type Result = ScanReport
 
 func confidenceRank(value Confidence) int {
 	switch value {

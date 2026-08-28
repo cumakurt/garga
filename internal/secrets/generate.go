@@ -39,6 +39,7 @@ func synthetic(id string, fields map[string]any) SyntheticDocument {
 	return SyntheticDocument{ID: id, Source: source}
 }
 
+//nolint:gosec // This local test-data generator intentionally contains recognizable fake credential patterns.
 func SyntheticDocuments() []SyntheticDocument {
 	return []SyntheticDocument{
 		synthetic("password-field", map[string]any{

@@ -24,9 +24,9 @@ sampled documents. The command is read-only: it never creates, updates, or
 deletes indices, documents, or cluster settings.
 
 Use only against clusters you own or are explicitly authorized to assess.
-Console, JSON, JSONL, table, and SARIF output mask secret values. A
-timestamped PDF artifact written to the current directory includes recovered
-secret values except private keys and password hashes.
+Console, JSON, JSONL, table, SARIF, and the timestamped PDF artifact all render
+the same canonical masked findings. Raw discovered values are discarded before
+the report model is created.
 
 Authentication secrets are read from environment variables named by
 --password-env, --api-key-env, or --bearer-token-env. There is no --password
@@ -285,21 +285,16 @@ func runSecretsScan(cmd *cobra.Command, buildInfo BuildInfo, args []string) erro
 	if _, err := fmt.Fprintf(cmd.ErrOrStderr(), "garga: PDF secrets report written to %s\n", artifactPath); err != nil {
 		return &executionError{exitCode: ExitInternalError, message: "write secrets report notice", cause: err}
 	}
-	output := cmd.OutOrStdout()
-	if path := strings.TrimSpace(flags.output); path != "" {
-		file, createErr := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
-		if createErr != nil {
-			return secretsInputError("create secrets output file", createErr)
-		}
-		defer file.Close()
-		output = file
-	}
 	if format != secrets.FormatTable {
 		if _, err := fmt.Fprintln(cmd.ErrOrStderr(), secrets.FormatSummary(result.Summary)); err != nil {
 			return &executionError{exitCode: ExitInternalError, message: "write secrets summary", cause: err}
 		}
 	}
-	if err := secrets.WriteReport(output, format, result); err != nil {
+	if path := strings.TrimSpace(flags.output); path != "" {
+		if err := secrets.WriteReportFile(path, format, result); err != nil {
+			return &executionError{exitCode: ExitInternalError, message: "write secrets report file", cause: err}
+		}
+	} else if err := secrets.WriteReport(cmd.OutOrStdout(), format, result); err != nil {
 		return &executionError{exitCode: ExitInternalError, message: "write secrets report", cause: err}
 	}
 	if result.Summary.PartialFailures > 0 && result.Summary.ReachableTargets == 0 {

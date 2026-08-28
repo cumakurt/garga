@@ -18,8 +18,8 @@ func TestDiffCommandWritesLifecycleJSONAndEnforcesFailOn(t *testing.T) {
 	directory := t.TempDir()
 	baseline := filepath.Join(directory, "baseline.jsonl")
 	current := filepath.Join(directory, "current.jsonl")
-	baseRecord := `{"schema_version":"0.1","id":"finding-a","check_id":"garga.test","title":"test","target":{"scheme":"https","host":"es.example.com","port":9200},"product":"Elasticsearch","severity":"medium","confidence":"high","applicability":"potential","priority_score":5}` + "\n"
-	currentRecord := `{"schema_version":"0.1","id":"finding-a","check_id":"garga.test","title":"test","target":{"scheme":"https","host":"es.example.com","port":9200},"product":"Elasticsearch","severity":"high","confidence":"high","applicability":"applicable","priority_score":9}` + "\n"
+	baseRecord := `{"schema_version":"1.0","id":"finding-a","check_id":"garga.test","title":"test","target":{"scheme":"https","host":"es.example.com","port":9200},"product":"Elasticsearch","severity":"medium","confidence":"high","applicability":"potential","priority_score":5}` + "\n"
+	currentRecord := `{"schema_version":"1.0","id":"finding-a","check_id":"garga.test","title":"test","target":{"scheme":"https","host":"es.example.com","port":9200},"product":"Elasticsearch","severity":"high","confidence":"high","applicability":"applicable","priority_score":9}` + "\n"
 	if err := os.WriteFile(baseline, []byte(baseRecord), 0o600); err != nil {
 		t.Fatalf("WriteFile(baseline) error = %v", err)
 	}

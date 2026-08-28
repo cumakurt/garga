@@ -15,7 +15,7 @@ import (
 
 const reportXSSTitle = "</td><script>alert(1)</script>"
 
-const reportJSONLInput = `{"schema_version":"0.1","id":"garga.exposure.anonymous_access|http://192.168.1.10:9200/|","check_id":"garga.exposure.anonymous_access","title":"</td><script>alert(1)</script>","target":{"scheme":"http","host":"192.168.1.10","port":9200},"product":"elasticsearch","severity":"high","confidence":"medium"}` + "\n"
+const reportJSONLInput = `{"schema_version":"1.0","id":"garga.exposure.anonymous_access|http://192.168.1.10:9200/|","check_id":"garga.exposure.anonymous_access","title":"</td><script>alert(1)</script>","target":{"scheme":"http","host":"192.168.1.10","port":9200},"product":"elasticsearch","severity":"high","confidence":"medium"}` + "\n"
 
 func TestReportHelpDocumentsJSONLInput(t *testing.T) {
 	t.Parallel()

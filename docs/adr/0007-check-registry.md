@@ -20,8 +20,8 @@ an unfinished contract.
 - Each check has a stable ID that is never reused for different semantics.
 - A check runs only when it applies. Capability `unsupported` suppresses dependent checks.
 - Deduplication keys are endpoint, check ID, and normalized resource. Unique evidence is merged.
-- The finding schema version is `0.1` until the first public tag. WP 8.1 publishes streaming
-  reporters against this pre-release schema and must not claim `1.0`.
+- The finding schema version is `1.0` as of garga v0.1.0. WP 8.1 originally published streaming
+  reporters against pre-release schema `0.1`; that identifier is no longer emitted.
 - WP 5.1 checks perform no additional I/O. Any future check request must be GET-only and
   allowlisted.
 - Signature evaluation is added through `WithSignatures`. CVE ranges stay in YAML.
@@ -30,4 +30,4 @@ an unfinished contract.
 
 Reporters can consume `model.Finding` without importing check implementations. Adding a check
 requires a new stable ID, applicability tests, redaction tests, and an active-safe request
-declaration. Schema `0.1` may still change before the first public tag.
+declaration. Finding schema `1.0` is the public streaming contract as of v0.1.0.

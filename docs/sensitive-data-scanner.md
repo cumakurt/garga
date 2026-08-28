@@ -32,6 +32,9 @@ The engine is not on the `scan`, `fingerprint`, `vuln`, or `health` path.
    secret material. Discard document bodies after classification.
 
 Point-in-time (PIT) search is not used because closing a PIT requires `DELETE`.
+Explicit alias filters are expanded to their concrete indices. Visible data streams
+are scanned through their backing indices, while hidden streams remain subject to
+`--include-system-indices`; duplicate concrete/backing entries are scanned once.
 
 The shared HTTP transport remains GET-only. Secrets uses a dedicated client that
 allowlists:
@@ -62,7 +65,7 @@ Public certificates and public keys are `info`, not secrets.
 
 ## Severity and confidence
 
-Severity: `info`, `low`, `medium`, `high`, `critical`.
+Severity: `INFO`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`.
 
 Confidence: `low`, `medium`, `high`, `confirmed-pattern`.
 
@@ -72,7 +75,7 @@ and is omitted by default.
 
 ## Masking
 
-Console, JSON, JSONL, table, and SARIF never include the full secret:
+Console, JSON, JSONL, table, SARIF, and PDF never include the full secret:
 
 - `password` → `p***********d`
 - AWS access key → `AKIA****************`
@@ -82,8 +85,16 @@ Console, JSON, JSONL, table, and SARIF never include the full secret:
 - password hashes → `Password hash detected (bcrypt)`
 
 The timestamped PDF written to the current directory (`garga-secrets-*.pdf`, mode
-`0600`) includes recovered secret values so an authorized operator can remediate.
-Private keys and password hashes remain type-only even in the PDF.
+`0600`) renders the same canonical masked findings as JSON and console output.
+Raw values are discarded before the canonical report is finalized. Private keys
+and password hashes remain type-only.
+
+The canonical schema is `1.1`. Each finding has a deterministic report-local ID,
+title, severity, confidence, location, detector, reason, masked preview,
+occurrence count, and remediation. Summary distributions and counters are
+calculated once and validated immediately before rendering. Severity uses the
+canonical uppercase values `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, and `INFO` in
+every output format.
 
 ## Sampling and performance
 
@@ -99,6 +110,7 @@ Defaults are production-safe:
 | `--max-depth` | 8 |
 | `--max-array-items` | 64 |
 | `--max-field-bytes` | 1 MiB |
+| Retained canonical findings | 10 000 (hard cap) |
 
 `--deep-scan` switches to a central deep profile without making unbounded reads:
 
@@ -115,6 +127,8 @@ walks nested objects/arrays more thoroughly, and uses a broader correlation alia
 (`uid`, `login_name`, `secretValue`, …) with the same confidence threshold. Pagination stays
 `search_after` + `_doc` + `_source` filtering + small batches. HTTP 429 responses apply
 exponential backoff and slow subsequent requests. Deep flags without `--deep-scan` are rejected.
+The 10 000-finding report cap applies to both profiles. Reaching it marks the report as
+truncated and returns a partial-failure status instead of allowing unbounded retention.
 
 Credential correlation is document-local. Sibling fields in the same object or the same array
 element can form a pair; `accounts[0].username` is never joined with `accounts[1].password`,
@@ -124,14 +138,20 @@ plaintext secrets. JSON `scan_mode` is `normal` or `deep`. Summary counts separa
 findings from correlated findings.
 
 Document sampling uses `_doc` order so `search_after` works without a PIT and without
-enabling `indices.id_field_data.enabled`. Sampling failures are logged and the rest of
-the run continues.
+enabling `indices.id_field_data.enabled`. If mapping analysis selects no eligible source
+fields, the index is not sampled; an empty `_source` filter is never allowed to expand
+into a full-document download. Sampling failures are logged and the rest of the run
+continues.
 
 HTTP 429, timeouts, connection resets, TLS errors, and partial shard failures fail
 that request after bounded exponential backoff; other indices and targets continue.
+Root responses must contain a coherent Elasticsearch cluster/version identity; generic JSON
+HTTP services and non-Elasticsearch distributions are rejected. Mapping failures and partial
+shard responses are recorded as partial failures rather than silently counted as inspected.
 System indices (names starting with `.`) are skipped unless
 `--include-system-indices` is set. If a `.security*` index is readable, garga emits
-a critical finding and does not dump authentication material from it.
+a critical finding only after a zero-document, `_source: false` search succeeds;
+authentication material is never requested or dumped.
 
 ## CLI usage
 
@@ -155,6 +175,8 @@ garga secrets --target https://es.example.internal:9200 \
 
 `--format` is `json`, `jsonl`, `table`, or `sarif`. There is no `--password` flag.
 mTLS is available with `--ca-cert`, `--client-cert`, and `--client-key`.
+`--output` uses an owner-only temporary file and atomic rename. Symbolic-link destinations
+are rejected.
 
 ### Synthetic test data
 
@@ -189,5 +211,6 @@ screenshots are in the README [Screenshots](../README.md#screenshots) section.
 ## Safety
 
 All product queries are read-only. Discovered secrets are not written to debug
-logs, error messages, or machine-readable reports. The PDF is an engagement
-artifact: store it as confidential and restrict access to authorized operators.
+logs, error messages, canonical reports, or rendered artifacts. Reports can still
+contain sensitive index, document, and topology metadata, so restrict them to
+authorized operators.

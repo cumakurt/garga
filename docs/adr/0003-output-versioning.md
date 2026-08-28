@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-26
+- Updated: 2026-08-28 (public finding schema `1.0` ships with garga v0.1.0)
 
 ## Context
 
@@ -32,3 +33,6 @@ and explicit review. Pre-release implementation may refine fields until the firs
 artifact, but it must not claim `1.0` compatibility before the corresponding tests and reference
 documentation exist. WP 8.1 publishes streaming reporters for schema `0.1`; the public `1.0`
 artifact remains reserved for the first public tag.
+
+garga v0.1.0 publishes finding schema `1.0` as that public contract. The streaming field set
+matches the previously tested `0.1` documents; only the version identifier changed.

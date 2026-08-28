@@ -131,6 +131,11 @@ func (options Options) withDefaults() Options {
 	if options.Retries < 0 {
 		options.Retries = defaults.Retries
 	}
+	// Bool zero value cannot mean "unset". Both scan profiles enable entropy;
+	// NewEngine callers that skip ApplyProfile must keep that default.
+	if !options.EntropyEnabled {
+		options.EntropyEnabled = defaults.EntropyEnabled
+	}
 	return options
 }
 

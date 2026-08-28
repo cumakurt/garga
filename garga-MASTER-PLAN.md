@@ -125,7 +125,8 @@ operator-grade PDF output.
 | D-004 | Signature trust root and signing mechanism | Resolved | Embedded Ed25519 public key; ADR 0014 |
 | D-005 | Default scan rate and concurrency | Resolved | 20 workers, 50 global req/s, 5 per-host req/s; ADR 0001 |
 
-No CLI, configuration, or output compatibility promise exists before the first public tag.
+The first public tag is **v0.1.0**. Finding schema `1.0` is the public streaming finding
+contract. CLI flags and configuration keys in that release are the compatibility baseline.
 
 ## 4. Architecture and dependency direction
 

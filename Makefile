@@ -2,12 +2,15 @@ GO ?= go
 BINARY ?= bin/garga
 GO_FILES := $(shell find cmd internal scripts -name '*.go' -type f) $(wildcard *.go)
 FUZZ_TIME ?= 5s
-VERSION ?=
-RELEASE_COMMIT ?=
-RELEASE_FLAGS := -out dist
-ifneq ($(VERSION),)
-RELEASE_FLAGS += -version $(VERSION)
+VERSION ?= $(shell tr -d ' \n\r\t' < VERSION 2>/dev/null)
+ifeq ($(strip $(VERSION)),)
+VERSION := dev
 endif
+COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null || echo none)
+BUILT_AT ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+LDFLAGS ?= -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.builtAt=$(BUILT_AT)
+RELEASE_COMMIT ?= $(COMMIT)
+RELEASE_FLAGS := -out dist -version $(VERSION)
 ifneq ($(RELEASE_COMMIT),)
 RELEASE_FLAGS += -commit $(RELEASE_COMMIT)
 endif
@@ -24,7 +27,7 @@ check: fmt-check shell-test vet test signatures-validate build
 
 build:
 	mkdir -p $(dir $(BINARY))
-	$(GO) build -o $(BINARY) ./cmd/garga
+	CGO_ENABLED=0 $(GO) build -trimpath -buildvcs=false -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/garga
 
 # Rebuilds, then copies the current binary onto PATH. Writing to /usr/local/bin
 # typically requires `sudo make install`.
@@ -64,7 +67,7 @@ lint:
 	$(GO) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run ./...
 
 # Microbenchmarks for docs/performance.md. Not part of check: timings are machine-specific.
-BENCH_PACKAGES ?= ./internal/target ./internal/fingerprint ./internal/vulnerability ./internal/report ./internal/scanner
+BENCH_PACKAGES ?= ./internal/target ./internal/fingerprint ./internal/vulnerability ./internal/report ./internal/scanner ./internal/secrets
 
 bench:
 	$(GO) test -run='^$$' -bench=. -benchmem $(BENCH_PACKAGES)
@@ -73,7 +76,7 @@ bench:
 integration:
 	GARGA_INTEGRATION=1 $(GO) test -count=1 -timeout 45m ./internal/integration
 
-# Cross-platform archives, SBOM, and SHA256SUMS. VERSION is required (for example v0.1.0).
+# Cross-platform archives, SBOM, and SHA256SUMS. Version defaults to VERSION (for example v0.1.0).
 release:
 	$(GO) run ./scripts/release $(RELEASE_FLAGS)
 

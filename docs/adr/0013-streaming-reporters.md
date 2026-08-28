@@ -7,7 +7,7 @@
 
 Findings must be consumed by people and automation without holding an entire scan in memory.
 HTML reports must remain usable offline and must not execute attacker-controlled markup. Claiming
-schema `1.0` before the first public tag would freeze a pre-release field set.
+schema `1.0` before tests and golden fixtures existed would freeze an unfinished field set.
 
 ## Decision
 
@@ -20,7 +20,7 @@ schema `1.0` before the first public tag would freeze a pre-release field set.
 - Supported formats are `console`, `json`, `jsonl`, `csv`, `html`, SARIF 2.1.0, and CycloneDX 1.6 VEX.
 - SARIF and VEX require a complete document and therefore retain at most 100,000 findings before
   deterministic rendering. Exceeding the limit fails instead of silently truncating output.
-- Machine formats carry `schema_version` `0.1`. Console output is not a machine schema.
+- Machine formats carry `schema_version` `1.0`. Console output is not a machine schema.
 - HTML uses `html.EscapeString` for all finding text, inline CSS only, and no external resources.
   `garga scan` also writes a buffered, timestamped PDF assessment and can write a matching HTML
   assessment to the working directory; those side channels do not change stdout writers.
@@ -30,5 +30,4 @@ schema `1.0` before the first public tag would freeze a pre-release field set.
 ## Consequences
 
 `garga scan` and `garga vuln` stream findings into these writers without coupling report encoding
-to scheduler internals. The public `1.0` finding schema remains reserved for the first public
-tag, after golden fixtures and release documentation exist.
+to scheduler internals. Finding schema `1.0` is the public streaming contract as of garga v0.1.0.

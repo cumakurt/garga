@@ -32,10 +32,10 @@ func TestSecretsHelpListsRequiredFlags(t *testing.T) {
 	}
 }
 
-func TestSecretsCommandMasksConsoleAndWritesPDF(t *testing.T) {
+func TestSecretsCommandMasksAllOutputsAndWritesPDF(t *testing.T) {
 	reportDirectory := t.TempDir()
 	t.Chdir(reportDirectory)
-	password := "fake-password-garga-test-ONLY"
+	password := "GARGA_TEST_SECRET_7F4D91A2"
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method == http.MethodDelete || request.Method == http.MethodPut || request.Method == http.MethodPatch {
 			t.Errorf("write method %s %s", request.Method, request.URL.Path)
@@ -52,7 +52,7 @@ func TestSecretsCommandMasksConsoleAndWritesPDF(t *testing.T) {
 		case "/app-logs/_mapping":
 			_, _ = io.WriteString(writer, `{"app-logs":{"mappings":{"properties":{"password":{"type":"keyword"}}}}}`)
 		case "/app-logs/_search":
-			_, _ = io.WriteString(writer, `{"hits":{"hits":[{"_id":"1","_source":{"password":"fake-password-garga-test-ONLY"},"sort":["1"]}]}}`)
+			_, _ = io.WriteString(writer, `{"hits":{"hits":[{"_id":"1","_source":{"password":"GARGA_TEST_SECRET_7F4D91A2"},"sort":["1"]}]}}`)
 		default:
 			writer.WriteHeader(http.StatusNotFound)
 		}
@@ -80,6 +80,7 @@ func TestSecretsCommandMasksConsoleAndWritesPDF(t *testing.T) {
 	}
 	var document struct {
 		Findings []struct {
+			ID            string `json:"id"`
 			MaskedPreview string `json:"masked_preview"`
 			Secret        string `json:"secret"`
 		} `json:"findings"`
@@ -93,6 +94,9 @@ func TestSecretsCommandMasksConsoleAndWritesPDF(t *testing.T) {
 	if document.Findings[0].Secret != "" {
 		t.Fatal("JSON finding included secret field")
 	}
+	if document.Findings[0].ID == "" || document.Findings[0].MaskedPreview == "" {
+		t.Fatal("JSON finding omitted canonical metadata")
+	}
 	artifacts, err := filepath.Glob(filepath.Join(reportDirectory, "garga-secrets-*.pdf"))
 	if err != nil || len(artifacts) != 1 {
 		t.Fatalf("pdf artifacts = %v err=%v", artifacts, err)
@@ -101,8 +105,11 @@ func TestSecretsCommandMasksConsoleAndWritesPDF(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(payload, []byte(password)) {
-		t.Fatal("PDF did not contain the full password")
+	if bytes.Contains(payload, []byte(password)) {
+		t.Fatal("PDF leaked the full password")
+	}
+	if !bytes.Contains(payload, []byte("Masked preview")) {
+		t.Fatal("PDF omitted the canonical masked preview")
 	}
 }
 

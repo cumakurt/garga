@@ -4,6 +4,19 @@ All notable changes to garga are documented in this file.
 
 ## Unreleased
 
+## [0.1.0] - 2026-08-28
+
+First public release. CLI flags, configuration keys, and streaming finding schema `1.0` are the
+compatibility baseline for this tag.
+
+### Fixed
+
+- Secrets console, JSON, and PDF reports now share the same canonical summary counters,
+  including partial failures. Table and PDF category labels match the summary. SARIF keeps
+  canonical severity on each result. Wide documents keep sensitive fields when object-size
+  caps apply, sampled document bodies are released after classification, and 429 slowdown
+  decays after successful requests.
+
 ### Added
 
 - `garga auth-detect` for bounded credential stuffing, password spraying, brute-force, and
@@ -80,6 +93,14 @@ All notable changes to garga are documented in this file.
 
 ### Changed
 
+- Streaming finding documents now use schema `1.0`, the public contract reserved in
+  [ADR 0003](docs/adr/0003-output-versioning.md).
+
+- `garga secrets` now discards raw discovered values before constructing its canonical `1.1`
+  report. Console, JSON, JSONL, table, SARIF, and PDF render the same masked findings and
+  authoritative summary. A pre-render invariant gate checks IDs, enums, timestamps,
+  occurrences, and summary parity; explicit output files are written atomically with mode
+  `0600` and symbolic-link destinations are rejected.
 - `garga secrets` document sampling sorts on `_doc` so Elasticsearch 8+/9 clusters can be
   scanned without enabling `_id` fielddata. Sampling failures are logged at warn.
 
@@ -106,6 +127,3 @@ All notable changes to garga are documented in this file.
 - Console and HTML listings highlight remotely usable compromise-class findings (`EXPLOITABLE`).
   The mark is not confirmed exploitation. Machine formats add an `exploitable` tag when the
   same classifier matches.
-
-The project remains pre-release. CLI, configuration, and finding schema `0.1` are not yet a
-tagged compatibility promise.

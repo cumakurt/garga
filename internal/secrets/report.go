@@ -7,7 +7,6 @@ import (
 	"sort"
 	"strings"
 	"text/tabwriter"
-	"time"
 )
 
 // Format is a secrets reporter encoding.
@@ -20,73 +19,18 @@ const (
 	FormatSARIF Format = "sarif"
 )
 
-type publicFinding struct {
-	Target         string            `json:"target"`
-	Cluster        string            `json:"cluster"`
-	Index          string            `json:"index"`
-	DocumentID     string            `json:"document_id"`
-	FieldPath      string            `json:"field_path"`
-	ObjectPath     string            `json:"object_path,omitempty"`
-	RelatedFields  []string          `json:"related_fields,omitempty"`
-	CredentialType string            `json:"credential_type,omitempty"`
-	Category       string            `json:"category"`
-	Detector       string            `json:"detector"`
-	Severity       Severity          `json:"severity"`
-	Confidence     Confidence        `json:"confidence"`
-	MaskedPreview  string            `json:"masked_preview"`
-	MaskedValues   map[string]string `json:"masked_values,omitempty"`
-	Reason         string            `json:"reason"`
-	Timestamp      time.Time         `json:"timestamp"`
-	Occurrences    int               `json:"occurrences"`
-}
-
-type publicResult struct {
-	SchemaVersion string          `json:"schema_version"`
-	Summary       Summary         `json:"summary"`
-	Targets       []TargetReport  `json:"targets"`
-	Findings      []publicFinding `json:"findings"`
-}
-
-func publicFindings(findings []Finding) []publicFinding {
-	out := make([]publicFinding, 0, len(findings))
-	for _, finding := range findings {
-		out = append(out, publicFinding{
-			Target:         finding.Target,
-			Cluster:        finding.Cluster,
-			Index:          finding.Index,
-			DocumentID:     finding.DocumentID,
-			FieldPath:      finding.FieldPath,
-			ObjectPath:     finding.ObjectPath,
-			RelatedFields:  finding.RelatedFields,
-			CredentialType: finding.CredentialType,
-			Category:       finding.Category,
-			Detector:       finding.Detector,
-			Severity:       finding.Severity,
-			Confidence:     finding.Confidence,
-			MaskedPreview:  finding.MaskedPreview,
-			MaskedValues:   finding.MaskedValues,
-			Reason:         finding.Reason,
-			Timestamp:      finding.Timestamp,
-			Occurrences:    finding.Occurrences,
-		})
+func WriteReport(output io.Writer, format Format, result ScanReport) error {
+	if err := ValidateResult(result); err != nil {
+		return fmt.Errorf("validate secrets report: %w", err)
 	}
-	return out
-}
-
-func WriteReport(output io.Writer, format Format, result Result) error {
 	switch format {
 	case FormatJSON:
 		encoder := json.NewEncoder(output)
 		encoder.SetIndent("", "  ")
-		return encoder.Encode(publicResult{
-			SchemaVersion: result.SchemaVersion,
-			Summary:       result.Summary,
-			Targets:       result.Targets,
-			Findings:      publicFindings(result.Findings),
-		})
+		return encoder.Encode(result)
 	case FormatJSONL:
 		encoder := json.NewEncoder(output)
-		for _, finding := range publicFindings(result.Findings) {
+		for _, finding := range result.Findings {
 			if err := encoder.Encode(finding); err != nil {
 				return err
 			}
@@ -101,7 +45,7 @@ func WriteReport(output io.Writer, format Format, result Result) error {
 	}
 }
 
-func writeTable(output io.Writer, result Result) error {
+func writeTable(output io.Writer, result ScanReport) error {
 	if _, err := fmt.Fprintln(output, FormatSummary(result.Summary)); err != nil {
 		return err
 	}
@@ -115,7 +59,7 @@ func writeTable(output io.Writer, result Result) error {
 	}
 	for _, finding := range result.Findings {
 		if _, err := fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\t%d\t%s\n",
-			finding.Severity, finding.Confidence, finding.Category, finding.Index, finding.FieldPath, finding.Occurrences, finding.MaskedPreview); err != nil {
+			finding.Severity, finding.Confidence, prettyCategory(finding.Category), finding.Index, finding.FieldPath, finding.Occurrences, finding.MaskedPreview); err != nil {
 			return err
 		}
 	}
@@ -137,12 +81,19 @@ func FormatSummary(summary Summary) string {
 	fmt.Fprintf(&builder, "Fields examined: %d\n", summary.FieldsExamined)
 	fmt.Fprintf(&builder, "Bytes examined: %d\n", summary.BytesExamined)
 	fmt.Fprintf(&builder, "Scan duration: %dms\n\n", summary.ScanDurationMS)
-	builder.WriteString("Sensitive findings:\n\n")
+	fmt.Fprintf(&builder, "Sensitive findings: %d\n\n", summary.Findings)
 	for _, severity := range []Severity{SeverityCritical, SeverityHigh, SeverityMedium, SeverityLow, SeverityInfo} {
 		fmt.Fprintf(&builder, "%s: %d\n", strings.ToUpper(string(severity)), summary.SeverityCounts[string(severity)])
 	}
 	fmt.Fprintf(&builder, "\nField findings: %d\n", summary.FieldFindings)
 	fmt.Fprintf(&builder, "Correlated findings: %d\n", summary.CorrelatedFindings)
+	fmt.Fprintf(&builder, "Occurrences: %d\n", summary.Occurrences)
+	if summary.PartialFailures > 0 {
+		fmt.Fprintf(&builder, "Partial failures: %d\n", summary.PartialFailures)
+	}
+	if summary.FindingsTruncated {
+		builder.WriteString("Finding limit reached: true\n")
+	}
 	builder.WriteString("\nCategories:\n\n")
 	keys := make([]string, 0, len(summary.CategoryCounts))
 	for key := range summary.CategoryCounts {
@@ -172,7 +123,7 @@ func FormatSummary(summary Summary) string {
 	return builder.String()
 }
 
-func writeSARIF(output io.Writer, result Result) error {
+func writeSARIF(output io.Writer, result ScanReport) error {
 	rules := map[string]struct{}{}
 	var results []map[string]any
 	for _, finding := range result.Findings {
@@ -192,6 +143,8 @@ func writeSARIF(output io.Writer, result Result) error {
 				},
 			}},
 			"properties": map[string]any{
+				"id":              finding.ID,
+				"severity":        finding.Severity,
 				"category":        finding.Category,
 				"confidence":      finding.Confidence,
 				"occurrences":     finding.Occurrences,

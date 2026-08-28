@@ -68,7 +68,7 @@ Rules:
 | `applicable` | The affected version and every observable runtime prerequisite match. |
 | `not_applicable` | At least one known runtime prerequisite does not match; no finding is emitted. |
 
-Finding conversion emits schema `0.1` findings with `potential` tags. Version-only signatures use
+Finding conversion emits schema `1.0` findings with `potential` tags. Version-only signatures use
 low confidence. Signatures whose `requires` capabilities are available use medium confidence.
 High confidence is reserved for `applicable` context-aware matches. Evaluation sends no additional
 HTTP request; it reuses capability discovery or the normalized `garga assess` snapshot. A missing

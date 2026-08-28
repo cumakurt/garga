@@ -20,4 +20,4 @@ fingerprint results as `model.Finding` values would overload the finding schema.
 ## Consequences
 
 `garga vuln` is the signature-matching command defined in ADR 0021. Identity JSON is a
-pre-release shape and is not finding schema `0.1`.
+pre-release shape and is not finding schema `1.0`.

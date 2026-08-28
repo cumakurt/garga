@@ -55,6 +55,28 @@ func TestMaskUTF8ShortString(t *testing.T) {
 	}
 }
 
+func TestMaskBoundaryAndUnicodeValues(t *testing.T) {
+	t.Parallel()
+	values := []string{
+		"", "x", "xy", "0** ", "***", "şifre", "TürkçeParola", "🔐", "🔐secret🙂",
+		"Bearer GARGA_TEST_SECRET_7F4D91A2",
+		"Basic R0FSR0FfVEVTVF9TRUNSRVRfN0Y0RDkxQTI=",
+		"eyJhbGciOiJub25lIn0.eyJzdWIiOiJnYXJnYSJ9.GARGA_TEST_SIGNATURE",
+	}
+	for _, value := range values {
+		masked := Mask(value)
+		if value == "" {
+			if masked != "" {
+				t.Fatalf("Mask(empty) = %q", masked)
+			}
+			continue
+		}
+		if masked == value || containsFull(value, masked) {
+			t.Fatalf("Mask(%q) leaked its input as %q", value, masked)
+		}
+	}
+}
+
 func containsFull(needle, haystack string) bool {
 	return len(needle) > 0 && len(haystack) > 0 && (haystack == needle || (len(haystack) >= len(needle) && containsIndex(haystack, needle)))
 }

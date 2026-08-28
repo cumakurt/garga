@@ -17,6 +17,7 @@ type scanHTMLDocument struct {
 	LogoBase64           string
 	Generated            time.Time
 	ScannerVersion       string
+	FindingSchema        string
 	Classification       string
 	ReportCode           string
 	ReportVersion        string
@@ -186,6 +187,7 @@ func buildScanHTMLDocument(findings []model.Finding, coverage ProbeCoverage, sca
 		LogoBase64:           garga.LogoPNGBase64(),
 		Generated:            generated.UTC(),
 		ScannerVersion:       scannerVersion,
+		FindingSchema:        model.FindingSchemaVersion,
 		Classification:       "Confidential — Authorized Security Assessment",
 		ReportCode:           pentestReportCode(generated),
 		ReportVersion:        "1.0",
@@ -524,7 +526,7 @@ const scanHTMLSource = `<!doctype html>
         <dt>Engagement type</dt><dd>{{.EngagementType}}</dd>
         <dt>Generated (UTC)</dt><dd>{{timestamp .Generated}}</dd>
         <dt>Assessor</dt><dd>{{.DeveloperName}}</dd>
-        <dt>Tooling</dt><dd>{{if .ScannerVersion}}{{.ScannerVersion}}{{else}}garga{{end}} · finding schema 0.1</dd>
+        <dt>Tooling</dt><dd>{{if .ScannerVersion}}{{.ScannerVersion}}{{else}}garga{{end}} · finding schema {{.FindingSchema}}</dd>
         <dt>Distribution</dt><dd>System owner and named recipients only. This file is written owner-only (mode 0600) on the operator workstation.</dd>
       </dl>
     </div>
@@ -686,7 +688,7 @@ const scanHTMLSource = `<!doctype html>
     <div class="card metric {{if .Coverage.Submitted}}INFO{{else}}OK{{end}}"><div class="metric-label">Probes submitted</div><div class="metric-value">{{.Coverage.Submitted}}</div><div class="metric-detail">{{.Coverage.Succeeded}} succeeded · {{.Coverage.Failed}} failed</div></div>
     <div class="card metric {{if .Summary.Critical}}CRITICAL{{else if .Summary.Findings}}HIGH{{else}}OK{{end}}"><div class="metric-label">Findings</div><div class="metric-value">{{.Summary.Findings}}</div><div class="metric-detail">{{.Summary.Exploitable}} exploitable-class</div></div>
     <div class="card metric INFO"><div class="metric-label">Duration</div><div class="metric-value">{{duration .Coverage.Duration}}</div><div class="metric-detail">GET-only assessment</div></div>
-    <div class="card metric INFO"><div class="metric-label">Scanner</div><div class="metric-value">{{if .ScannerVersion}}{{.ScannerVersion}}{{else}}garga{{end}}</div><div class="metric-detail">Finding schema 0.1</div></div>
+    <div class="card metric INFO"><div class="metric-label">Scanner</div><div class="metric-value">{{if .ScannerVersion}}{{.ScannerVersion}}{{else}}garga{{end}}</div><div class="metric-detail">Finding schema {{.FindingSchema}}</div></div>
   </div>
   <div class="card" style="margin-top:14px"><ul>{{range .Limitations}}<li>{{.}}</li>{{end}}</ul></div>
 </section>

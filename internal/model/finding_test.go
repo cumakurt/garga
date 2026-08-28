@@ -116,7 +116,7 @@ func TestFindingJSONOmitsRawBodiesAndZeroTime(t *testing.T) {
 	if strings.Contains(encoded, canary) || strings.Contains(encoded, "first_seen") || strings.Contains(encoded, "0001-01-01") {
 		t.Fatalf("JSON = %s", encoded)
 	}
-	if !strings.Contains(encoded, `"schema_version":"0.1"`) {
+	if !strings.Contains(encoded, `"schema_version":"`+FindingSchemaVersion+`"`) {
 		t.Fatalf("JSON missing schema version: %s", encoded)
 	}
 }

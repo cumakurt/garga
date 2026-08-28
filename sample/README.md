@@ -15,15 +15,13 @@ script copies the latest timestamped PDFs from the demo working directory.
 | [garga-assessment-sample.pdf](garga-assessment-sample.pdf) | `garga assess` | Authenticated security assessment with CVE applicability |
 | [garga-secrets-sample.pdf](garga-secrets-sample.pdf) | `garga secrets` | Sensitive-data findings from synthetic fixtures |
 
-## Secrets sample warning
+## Secrets sample privacy
 
-`garga-secrets-sample.pdf` includes recovered values from `garga secrets generate`
-fixtures (`garga-sensitive-test`, 47 synthetic documents). The demo index is built
+`garga-secrets-sample.pdf` contains masked findings from `garga secrets generate`
+fixtures (`garga-sensitive-test`, 49 synthetic documents). The demo index is built
 to exercise every detector family (cloud keys, developer tokens, private keys,
-connection strings, hashes, nested objects, and more). Those values are **fake**
-(`fake-password-garga-test-ONLY`, AWS example-style keys, and similar). They are
-not production credentials.
+connection strings, hashes, nested objects, and more).
 
-Console, JSON, JSONL, table, and SARIF output remain masked. The PDF is the only
-artifact that includes recovered secret values (except private keys and password
-hashes, which stay type-only). Treat any real `garga-secrets-*.pdf` as confidential.
+Console, JSON, JSONL, table, SARIF, and PDF all use the same canonical masked
+findings. Treat reports as confidential because index names, document IDs, field
+paths, and cluster metadata may still be sensitive.

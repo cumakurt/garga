@@ -31,7 +31,7 @@ The command does not contact the network.
 
 Each input line must be one finding JSON object. Invalid records fail the
 command without echoing the payload. Console output is human-oriented and is
-not a machine schema contract. Machine formats use finding schema 0.1.
+not a machine schema contract. Machine formats use finding schema 1.0.
 `),
 		Args:          cobra.NoArgs,
 		SilenceUsage:  true,

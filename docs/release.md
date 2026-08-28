@@ -32,9 +32,10 @@ unless they are the main AGPL-3.0-only module.
 
 1. Confirm Section 11 gates: `make check`, `make test-race`, `make lint`, `make fuzz-smoke`, and
    `make vulncheck` (on Go 1.26.6+ or 1.27.0+). `make check` includes `make signatures-validate`.
-2. Update [CHANGELOG.md](../CHANGELOG.md) and [SECURITY.md](../SECURITY.md) supported versions.
+2. Set `VERSION` to `vX.Y.Z` and update [CHANGELOG.md](../CHANGELOG.md) and [SECURITY.md](../SECURITY.md)
+   supported versions.
 3. Tag `vX.Y.Z` and push the tag. The `Release` workflow builds `dist/` and publishes a GitHub
-   Release.
+   Release. Local `make build` and `make release` read the same `VERSION` file when the flag is omitted.
 4. Local equivalent:
 
 ```sh

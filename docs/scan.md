@@ -50,7 +50,7 @@ instantaneous rate may briefly exceed the scanner-only budget.
 ## Output and exit codes
 
 `--format` selects `console`, `json`, `jsonl`, `csv`, `html`, `sarif`, or `vex`. When omitted, `output.format`
-from configuration applies. Machine formats use finding schema `0.1`. Logs stay on stderr.
+from configuration applies. Machine formats use finding schema `1.0`. Logs stay on stderr.
 
 On a terminal, `garga scan` draws a live progress bar on stderr while probes are in flight
 (`completed/submitted`, percent, rate, and eta). The bar uses only counters: it never prints

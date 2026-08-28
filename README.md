@@ -9,9 +9,9 @@ assessments**. It discovers reachable services, identifies Elasticsearch from mu
 independent signals, evaluates exposure without changing cluster state, optionally matches
 YAML vulnerability signatures, and streams evidence-backed reports.
 
-The project is **pre-release**. CLI flags, configuration keys, and finding schema `0.1` are
-implemented and tested, but they are not a tagged compatibility promise until a public
-release documents them as such.
+The first public release is **v0.1.0**. CLI flags, configuration keys, and finding schema `1.0`
+are the compatibility baseline for this tag. Additive optional fields may appear in a later
+minor release; incompatible changes require a new major version.
 
 | | |
 |---|---|
@@ -100,7 +100,7 @@ Supporting behavior already in the binary:
 - reusable HTTP/TLS transport (timeouts, proxy, redirects, response size limits);
 - multi-signal Elasticsearch fingerprinting (OpenSearch is never treated as Elasticsearch);
 - GET-only API catalog and capability classification;
-- finding schema `0.1` with redacted evidence;
+- finding schema `1.0` with redacted evidence;
 - structured JSON logs on stderr (secrets redacted);
 - signed Ed25519 signature bundles, staging, and rollback.
 
@@ -296,12 +296,14 @@ sudo make uninstall
 ### Manual build
 
 ```sh
-go build -o bin/garga ./cmd/garga
+make build
 ./bin/garga --help
+./bin/garga version
 ```
 
-Release archives, checksums, and SBOMs are produced with `make release VERSION=vX.Y.Z` and
-documented in [docs/release.md](docs/release.md). There is no tagged binary yet.
+`make build` injects `VERSION`, git commit, and build time (`CGO_ENABLED=0`, `-trimpath`).
+Release archives, checksums, and SBOMs are produced with `make release` (version from `VERSION`
+or `make release VERSION=vX.Y.Z`) and documented in [docs/release.md](docs/release.md).
 
 ## Commands
 
@@ -498,9 +500,9 @@ Details: [docs/credential-detect.md](docs/credential-detect.md).
 ### `garga secrets`
 
 Discover sensitive values in authorized Elasticsearch mappings and a bounded document sample.
-The command is read-only. Console, JSON, JSONL, table, and SARIF output are masked. A
-timestamped PDF in the current directory includes recovered secret values except private keys
-and password hashes.
+The command is read-only. Console, JSON, JSONL, table, SARIF, and the timestamped PDF artifact
+all render the same canonical masked report. Raw discovered values are discarded before the
+report model is created.
 
 ```sh
 export ES_PASSWORD='...'
@@ -634,13 +636,13 @@ Credential audit and detection do not use scanner rate settings. Full limits and
 
 ## Reports and logs
 
-Machine formats use finding schema `0.1` (pre-release; not the public `1.0` contract).
+Machine formats use finding schema `1.0`.
 
 | Format | Use |
 |---|---|
 | `console` | Grouped by target; exploitable findings first, then severity; color on a TTY (`NO_COLOR` disables) |
 | `jsonl` | One finding object per line; streaming |
-| `json` | `{"schema_version":"0.1","findings":[...]}` |
+| `json` | `{"schema_version":"1.0","findings":[...]}` |
 | `csv` | Header plus one row per finding |
 | `html` | Standalone, escaped, no scripts or network resources; exploitable rows highlighted |
 | `sarif` | SARIF 2.1.0 results for code-scanning and security automation |

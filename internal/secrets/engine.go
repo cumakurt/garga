@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"path"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -19,6 +20,7 @@ import (
 
 const (
 	securityIndexPrefix = ".security"
+	securityProbeBody   = `{"size":0,"track_total_hits":false,"_source":false}`
 )
 
 // Engine runs authorized read-only sensitive-data discovery.
@@ -45,14 +47,14 @@ func NewEngine(options Options, secret *credential.Secret, userAgent string, log
 	return &Engine{options: options, secret: secret, userAgent: userAgent, logger: logger, dedupKey: key}, nil
 }
 
-func (engine *Engine) Scan(ctx context.Context, rawTargets []string) (Result, error) {
+func (engine *Engine) Scan(ctx context.Context, rawTargets []string) (ScanReport, error) {
 	started := time.Now().UTC()
 	endpoints, err := parseTargets(rawTargets)
 	if err != nil {
-		return Result{}, err
+		return ScanReport{}, err
 	}
 	if len(endpoints) == 0 {
-		return Result{}, fmt.Errorf("at least one secrets target is required")
+		return ScanReport{}, fmt.Errorf("at least one secrets target is required")
 	}
 	scanCtx := ctx
 	if engine.options.Timeout > 0 {
@@ -62,16 +64,16 @@ func (engine *Engine) Scan(ctx context.Context, rawTargets []string) (Result, er
 	}
 
 	type job struct {
+		index    int
 		raw      string
 		endpoint model.Endpoint
 	}
-	jobs := make(chan job)
-	var (
-		mu       sync.Mutex
-		reports  = make([]TargetReport, 0, len(endpoints))
+	type targetResult struct {
+		report   TargetReport
 		findings []Finding
-		dedup    = map[string]*Finding{}
-	)
+	}
+	jobs := make(chan job)
+	targetResults := make([]targetResult, len(endpoints))
 	var wg sync.WaitGroup
 	workers := engine.options.Concurrency
 	if workers > len(endpoints) {
@@ -82,71 +84,93 @@ func (engine *Engine) Scan(ctx context.Context, rawTargets []string) (Result, er
 		go func() {
 			defer wg.Done()
 			for item := range jobs {
-				report, local := engine.scanTarget(scanCtx, item.raw, item.endpoint)
-				mu.Lock()
-				reports = append(reports, report)
-				for _, finding := range local {
-					engine.mergeFinding(dedup, finding)
-				}
-				mu.Unlock()
+				report, findings := engine.scanTarget(scanCtx, item.raw, item.endpoint)
+				targetResults[item.index] = targetResult{report: report, findings: findings}
 			}
 		}()
 	}
-	for _, item := range endpoints {
+	for index, item := range endpoints {
 		select {
 		case <-scanCtx.Done():
 			close(jobs)
 			wg.Wait()
-			return Result{}, scanCtx.Err()
-		case jobs <- item:
+			return ScanReport{}, scanCtx.Err()
+		case jobs <- job{index: index, raw: item.raw, endpoint: item.endpoint}:
 		}
 	}
 	close(jobs)
 	wg.Wait()
+	if err := scanCtx.Err(); err != nil {
+		return ScanReport{}, err
+	}
 
+	reports := make([]TargetReport, 0, len(targetResults))
+	dedup := make(map[string]*Finding)
+	for _, targetResult := range targetResults {
+		report := targetResult.report
+		for _, finding := range targetResult.findings {
+			if engine.mergeFinding(dedup, finding) {
+				report.FindingsTruncated = true
+			}
+		}
+		if report.FindingsTruncated && report.Error == "" {
+			report.Error = fmt.Sprintf("finding limit of %d reached", MaxReportFindings)
+		}
+		reports = append(reports, report)
+	}
+	findings := make([]Finding, 0, len(dedup))
 	for _, finding := range dedup {
 		findings = append(findings, *finding)
 	}
 	sortFindings(findings)
+	finalizeFindings(findings)
 	sort.Slice(reports, func(i, j int) bool { return reports[i].Target < reports[j].Target })
 	finished := time.Now().UTC()
-	result := Result{
+	result := ScanReport{
 		SchemaVersion: SchemaVersion,
 		Targets:       reports,
 		Findings:      findings,
 		Summary:       buildSummary(engine.options.scanMode(), reports, findings, started, finished),
 	}
+	if err := ValidateResult(result); err != nil {
+		return ScanReport{}, fmt.Errorf("validate secrets report: %w", err)
+	}
 	return result, nil
 }
 
-func (engine *Engine) mergeFinding(dedup map[string]*Finding, finding Finding) {
+func (engine *Engine) mergeFinding(dedup map[string]*Finding, finding Finding) bool {
 	if confidenceRank(finding.Confidence) < confidenceRank(engine.options.MinConfidence) {
-		return
+		return false
 	}
 	if finding.Occurrences <= 0 {
 		finding.Occurrences = 1
 	}
-	secret := finding.Secret
-	if secret == "" {
-		secret = finding.MaskedPreview
+	dedupFingerprint := finding.dedupFingerprint
+	if dedupFingerprint == "" {
+		dedupFingerprint = fingerprintSecret(engine.dedupKey, finding.Category, finding.MaskedPreview)
 	}
-	keyMaterial := finding.Category + "\x00" + finding.Index + "\x00" + finding.FieldPath
+	keyMaterial := finding.Target + "\x00" + finding.Cluster + "\x00" + finding.Category + "\x00" + finding.Index + "\x00" + finding.FieldPath
 	if finding.CredentialType != "" {
-		keyMaterial = finding.Category + "\x00" + finding.Index + "\x00" + finding.CredentialType + "\x00" + finding.MaskedPreview
+		keyMaterial = finding.Target + "\x00" + finding.Cluster + "\x00" + finding.Category + "\x00" + finding.Index + "\x00" + finding.CredentialType + "\x00" + finding.MaskedPreview
 	}
-	key := fingerprintSecret(engine.dedupKey, keyMaterial, secret)
+	key := fingerprintSecret(engine.dedupKey, keyMaterial, dedupFingerprint)
 	if existing, ok := dedup[key]; ok {
-		existing.Occurrences++
+		existing.Occurrences += finding.Occurrences
 		if severityRank(finding.Severity) > severityRank(existing.Severity) {
 			existing.Severity = finding.Severity
 		}
 		if confidenceRank(finding.Confidence) > confidenceRank(existing.Confidence) {
 			existing.Confidence = finding.Confidence
 		}
-		return
+		return false
+	}
+	if len(dedup) >= MaxReportFindings {
+		return true
 	}
 	cloned := finding
+	cloned.dedupFingerprint = ""
 	dedup[key] = &cloned
+	return false
 }
 
 func (engine *Engine) scanTarget(ctx context.Context, raw string, endpoint model.Endpoint) (TargetReport, []Finding) {
@@ -160,10 +184,17 @@ func (engine *Engine) scanTarget(ctx context.Context, raw string, endpoint model
 
 	var root map[string]any
 	if err := client.getJSON(ctx, "/", nil, &root); err != nil {
+		if responseWasReceived(err) {
+			report.Reachable = true
+		}
 		report.Error = credential.Redact(err.Error(), engine.secret)
 		return report, nil
 	}
 	report.Reachable = true
+	if err := validateElasticsearchRoot(root); err != nil {
+		report.Error = err.Error()
+		return report, nil
+	}
 	report.Cluster = stringField(root, "cluster_name")
 	if version, ok := root["version"].(map[string]any); ok {
 		report.Version = stringField(version, "number")
@@ -172,7 +203,7 @@ func (engine *Engine) scanTarget(ctx context.Context, raw string, endpoint model
 	var auth map[string]any
 	if err := client.getJSON(ctx, "/_security/_authenticate", nil, &auth); err == nil {
 		report.Authenticated = true
-		report.AuthIdentity = firstNonEmpty(stringField(auth, "username"), stringField(auth, "full_name"))
+		report.AuthIdentity = credential.Redact(firstNonEmpty(stringField(auth, "username"), stringField(auth, "full_name")), engine.secret)
 	}
 
 	indices, err := engine.listIndices(ctx, client)
@@ -181,8 +212,8 @@ func (engine *Engine) scanTarget(ctx context.Context, raw string, endpoint model
 		return report, nil
 	}
 	aliases := engine.loadAliases(ctx, client)
-	_ = engine.loadDataStreams(ctx, client)
-	_ = aliases
+	dataStreams := engine.loadDataStreams(ctx, client)
+	indices = engine.expandCatalogIndices(indices, aliases, dataStreams)
 
 	var findings []Finding
 	budget := engine.options.MaxDocuments
@@ -190,7 +221,16 @@ func (engine *Engine) scanTarget(ctx context.Context, raw string, endpoint model
 		if ctx.Err() != nil {
 			break
 		}
+		if !engine.includeIndex(index) {
+			continue
+		}
 		if isSecurityIndex(index) {
+			var probe searchResponse
+			if err := client.postSearch(ctx, index, []byte(securityProbeBody), &probe); err != nil {
+				engine.logger.DebugContext(ctx, "secrets security index read probe denied", slog.String("index", index), slog.String("error", credential.Redact(err.Error(), engine.secret)))
+				continue
+			}
+			report.IndicesInspected++
 			findings = append(findings, Finding{
 				Target:        raw,
 				Cluster:       report.Cluster,
@@ -200,23 +240,39 @@ func (engine *Engine) scanTarget(ctx context.Context, raw string, endpoint model
 				Detector:      "security-index",
 				Severity:      SeverityCritical,
 				Confidence:    ConfidenceConfirmed,
-				MaskedPreview: "Elasticsearch security index is readable by supplied account.",
-				Reason:        "Elasticsearch security index is readable by supplied account.",
+				MaskedPreview: "Elasticsearch security index read probe succeeded without retrieving documents.",
+				Reason:        "A zero-document, source-disabled search confirmed that the supplied identity can read the Elasticsearch security index.",
 				Timestamp:     time.Now().UTC(),
 				Occurrences:   1,
 			})
 			continue
 		}
-		if !engine.includeIndex(index) {
+		indexFindings, sampled, stats, truncated, indexErr := engine.scanIndex(ctx, client, raw, report.Cluster, index, &budget)
+		if indexErr != nil {
+			if report.Error == "" {
+				report.Error = credential.Redact(indexErr.Error(), engine.secret)
+			}
+			engine.logger.WarnContext(ctx, "secrets index scan failed", slog.String("index", index), slog.String("error", credential.Redact(indexErr.Error(), engine.secret)))
 			continue
 		}
-		indexFindings, sampled, stats := engine.scanIndex(ctx, client, raw, report.Cluster, index, &budget)
 		report.DocumentsSampled += sampled
 		report.DocumentsExamined += sampled
 		report.FieldsExamined += stats.fields
 		report.BytesExamined += stats.bytes
 		report.IndicesInspected++
+		remainingFindings := MaxReportFindings - len(findings)
+		if len(indexFindings) > remainingFindings {
+			indexFindings = indexFindings[:remainingFindings]
+			truncated = true
+		}
 		findings = append(findings, indexFindings...)
+		if truncated || len(findings) >= MaxReportFindings {
+			report.FindingsTruncated = true
+			if report.Error == "" {
+				report.Error = fmt.Sprintf("finding limit of %d reached", MaxReportFindings)
+			}
+			break
+		}
 		if budget <= 0 {
 			break
 		}
@@ -280,36 +336,103 @@ func (engine *Engine) loadAliases(ctx context.Context, client *esClient) map[str
 	return aliases
 }
 
-func (engine *Engine) loadDataStreams(ctx context.Context, client *esClient) []string {
+type dataStreamIndices struct {
+	backing []string
+	hidden  bool
+}
+
+func (engine *Engine) loadDataStreams(ctx context.Context, client *esClient) map[string]dataStreamIndices {
 	var raw map[string]any
 	if err := client.getJSON(ctx, "/_data_stream", nil, &raw); err != nil {
 		engine.logger.DebugContext(ctx, "secrets data stream listing failed", slog.String("error", credential.Redact(err.Error(), engine.secret)))
 		return nil
 	}
 	streams, _ := raw["data_streams"].([]any)
-	var names []string
+	catalog := make(map[string]dataStreamIndices)
 	for _, item := range streams {
 		object, _ := item.(map[string]any)
-		if name := stringField(object, "name"); name != "" {
-			names = append(names, name)
+		name := stringField(object, "name")
+		if name == "" || !validIndexName(name) {
+			continue
 		}
+		stream := dataStreamIndices{}
+		stream.hidden, _ = object["hidden"].(bool)
+		indices, _ := object["indices"].([]any)
+		for _, rawIndex := range indices {
+			indexObject, _ := rawIndex.(map[string]any)
+			indexName := stringField(indexObject, "index_name")
+			if validIndexName(indexName) {
+				stream.backing = append(stream.backing, indexName)
+			}
+		}
+		sort.Strings(stream.backing)
+		catalog[name] = stream
 	}
-	return names
+	return catalog
 }
 
-func (engine *Engine) scanIndex(ctx context.Context, client *esClient, targetURL, cluster, index string, budget *int) ([]Finding, int, walkStats) {
+func (engine *Engine) expandCatalogIndices(concrete []string, aliases map[string][]string, streams map[string]dataStreamIndices) []string {
+	selected := make(map[string]struct{}, len(concrete))
+	add := func(index string, resolved, dataStreamBacking bool) {
+		if !validIndexName(index) || matchAny(index, engine.options.ExcludeIndices) {
+			return
+		}
+		if !resolved {
+			if !engine.includeIndex(index) {
+				return
+			}
+		} else if !dataStreamBacking && !engine.options.IncludeSystemIndices && strings.HasPrefix(index, ".") {
+			return
+		}
+		selected[index] = struct{}{}
+	}
+	for _, index := range concrete {
+		add(index, false, false)
+	}
+	if len(engine.options.Indices) > 0 {
+		for alias, backing := range aliases {
+			if !matchAny(alias, engine.options.Indices) || matchAny(alias, engine.options.ExcludeIndices) {
+				continue
+			}
+			for _, index := range backing {
+				add(index, true, false)
+			}
+		}
+	}
+	for name, stream := range streams {
+		if stream.hidden && !engine.options.IncludeSystemIndices {
+			continue
+		}
+		if len(engine.options.Indices) > 0 && !matchAny(name, engine.options.Indices) {
+			continue
+		}
+		if matchAny(name, engine.options.ExcludeIndices) {
+			continue
+		}
+		for _, index := range stream.backing {
+			add(index, true, true)
+		}
+	}
+	indices := make([]string, 0, len(selected))
+	for index := range selected {
+		indices = append(indices, index)
+	}
+	sort.Strings(indices)
+	return indices
+}
+
+func (engine *Engine) scanIndex(ctx context.Context, client *esClient, targetURL, cluster, index string, budget *int) ([]Finding, int, walkStats, bool, error) {
 	limits := engine.options.walkLimits()
 	var mapping map[string]any
 	mappingPath := "/" + url.PathEscape(index) + "/_mapping"
-	fields := []FieldSemantics{}
-	if err := client.getJSON(ctx, mappingPath, nil, &mapping); err == nil {
-		if wrapped, ok := mapping[index].(map[string]any); ok {
-			fields = mappingFields(wrapped["mappings"], "", 0, limits)
-		} else {
-			fields = mappingFields(mapping, "", 0, limits)
-		}
+	if err := client.getJSON(ctx, mappingPath, nil, &mapping); err != nil {
+		return nil, 0, walkStats{}, false, fmt.Errorf("read mapping for index %q: %w", index, err)
+	}
+	var fields []FieldSemantics
+	if wrapped, ok := mapping[index].(map[string]any); ok {
+		fields = mappingFields(wrapped["mappings"], "", 0, limits)
 	} else {
-		engine.logger.DebugContext(ctx, "secrets mapping fetch failed", slog.String("index", index), slog.String("error", credential.Redact(err.Error(), engine.secret)))
+		fields = mappingFields(mapping, "", 0, limits)
 	}
 
 	maxFields := engine.options.MaxSourceFields
@@ -317,31 +440,40 @@ func (engine *Engine) scanIndex(ctx context.Context, client *esClient, targetURL
 		maxFields = DefaultMaxSourceFields
 	}
 	includes := sourceIncludes(fields, maxFields, engine.options.ScanGenericFields)
+	if len(includes) == 0 {
+		return nil, 0, walkStats{}, false, nil
+	}
 	sampleSize := engine.options.SampleSize
 	if *budget < sampleSize {
 		sampleSize = *budget
 	}
 	if sampleSize <= 0 {
-		return nil, 0, walkStats{}
+		return nil, 0, walkStats{}, false, nil
 	}
 	documents, err := engine.sampleDocuments(ctx, client, index, includes, sampleSize)
 	if err != nil {
-		engine.logger.WarnContext(ctx, "secrets sampling failed", slog.String("index", index), slog.String("error", credential.Redact(err.Error(), engine.secret)))
-		return nil, 0, walkStats{}
+		return nil, 0, walkStats{}, false, fmt.Errorf("sample index %q: %w", index, err)
 	}
 
 	var findings []Finding
 	var stats walkStats
+	processed := 0
+	truncated := false
 	now := time.Now().UTC()
-	for _, document := range documents {
+	for docIndex := range documents {
 		if ctx.Err() != nil {
 			break
 		}
-		walked := walkDocumentStats(document.Source, limits)
-		document.Source = nil
+		walked := walkDocumentStats(documents[docIndex].Source, limits)
+		documents[docIndex].Source = nil
 		stats.fields += walked.stats.fields
 		stats.bytes += walked.stats.bytes
+		processed++
 		for _, item := range walked.hits {
+			if len(findings) >= MaxReportFindings {
+				truncated = true
+				break
+			}
 			fieldPath := item.FieldPath
 			if fieldPath == "" {
 				fieldPath = itemPathFromHit(item)
@@ -350,7 +482,7 @@ func (engine *Engine) scanIndex(ctx context.Context, client *esClient, targetURL
 				Target:         targetURL,
 				Cluster:        cluster,
 				Index:          index,
-				DocumentID:     document.ID,
+				DocumentID:     documents[docIndex].ID,
 				FieldPath:      firstNonEmpty(fieldPath, "document"),
 				ObjectPath:     item.ObjectPath,
 				RelatedFields:  item.RelatedFields,
@@ -365,14 +497,19 @@ func (engine *Engine) scanIndex(ctx context.Context, client *esClient, targetURL
 				Timestamp:      now,
 				Occurrences:    1,
 			}
-			if !item.Suppress {
-				finding.Secret = item.Raw
+			fingerprintValue := item.Raw
+			if fingerprintValue == "" {
+				fingerprintValue = item.Masked
 			}
+			finding.dedupFingerprint = fingerprintSecret(engine.dedupKey, item.Category, fingerprintValue)
 			findings = append(findings, finding)
 		}
+		if truncated {
+			break
+		}
 	}
-	*budget -= len(documents)
-	return findings, len(documents), stats
+	*budget -= processed
+	return findings, processed, stats, truncated, nil
 }
 
 type sampledDocument struct {
@@ -404,6 +541,9 @@ func (engine *Engine) sampleDocuments(ctx context.Context, client *esClient, ind
 		if err := client.postSearch(ctx, index, body, &response); err != nil {
 			return documents, err
 		}
+		if response.Shards.Failed > 0 {
+			return documents, fmt.Errorf("search response reported %d failed shards", response.Shards.Failed)
+		}
 		if len(response.Hits.Hits) == 0 {
 			break
 		}
@@ -423,6 +563,9 @@ func (engine *Engine) sampleDocuments(ctx context.Context, client *esClient, ind
 }
 
 type searchResponse struct {
+	Shards struct {
+		Failed int `json:"failed"`
+	} `json:"_shards"`
 	Hits struct {
 		Hits []struct {
 			ID     string         `json:"_id"`
@@ -498,6 +641,7 @@ func parseTargets(rawTargets []string) ([]struct {
 			endpoint model.Endpoint
 		}{raw: item.raw, endpoint: item.endpoint}
 	}
+	sort.Slice(converted, func(i, j int) bool { return converted[i].raw < converted[j].raw })
 	return converted, nil
 }
 
@@ -529,19 +673,99 @@ func stringField(object map[string]any, key string) string {
 	return value
 }
 
+func validateElasticsearchRoot(root map[string]any) error {
+	clusterName := strings.TrimSpace(stringField(root, "cluster_name"))
+	version, _ := root["version"].(map[string]any)
+	versionNumber := strings.TrimSpace(stringField(version, "number"))
+	if clusterName == "" || versionNumber == "" {
+		return fmt.Errorf("target is not a confirmed Elasticsearch endpoint")
+	}
+	majorText, _, _ := strings.Cut(versionNumber, ".")
+	major, err := strconv.Atoi(majorText)
+	if err != nil || major < 1 || major > 99 {
+		return fmt.Errorf("target returned an invalid Elasticsearch version")
+	}
+	if distribution := strings.TrimSpace(stringField(version, "distribution")); distribution != "" && !strings.EqualFold(distribution, "elasticsearch") {
+		return fmt.Errorf("target reports a non-Elasticsearch distribution")
+	}
+	if tagline := strings.TrimSpace(stringField(root, "tagline")); tagline != "" && tagline != "You Know, for Search" {
+		return fmt.Errorf("target returned an unexpected Elasticsearch identity")
+	}
+	return nil
+}
+
 func sortFindings(findings []Finding) {
-	sort.Slice(findings, func(i, j int) bool {
+	sort.SliceStable(findings, func(i, j int) bool {
 		if severityRank(findings[i].Severity) != severityRank(findings[j].Severity) {
 			return severityRank(findings[i].Severity) > severityRank(findings[j].Severity)
+		}
+		if findings[i].Target != findings[j].Target {
+			return findings[i].Target < findings[j].Target
 		}
 		if findings[i].Index != findings[j].Index {
 			return findings[i].Index < findings[j].Index
 		}
+		if findings[i].Category != findings[j].Category {
+			return findings[i].Category < findings[j].Category
+		}
 		if findings[i].FieldPath != findings[j].FieldPath {
 			return findings[i].FieldPath < findings[j].FieldPath
 		}
-		return findings[i].Category < findings[j].Category
+		if findings[i].DocumentID != findings[j].DocumentID {
+			return findings[i].DocumentID < findings[j].DocumentID
+		}
+		if findings[i].Detector != findings[j].Detector {
+			return findings[i].Detector < findings[j].Detector
+		}
+		if findings[i].CredentialType != findings[j].CredentialType {
+			return findings[i].CredentialType < findings[j].CredentialType
+		}
+		if findings[i].ObjectPath != findings[j].ObjectPath {
+			return findings[i].ObjectPath < findings[j].ObjectPath
+		}
+		return findings[i].MaskedPreview < findings[j].MaskedPreview
 	})
+}
+
+func finalizeFindings(findings []Finding) {
+	for index := range findings {
+		finding := &findings[index]
+		finding.ID = fmt.Sprintf("SEC-%06d", index+1)
+		finding.Title = findingTitle(*finding)
+		finding.Remediation = findingRemediation(*finding)
+		finding.dedupFingerprint = ""
+	}
+}
+
+func findingTitle(finding Finding) string {
+	if finding.CredentialType != "" {
+		return "Correlated credential material detected"
+	}
+	switch finding.Category {
+	case "exposure.security_index":
+		return "Elasticsearch security index is readable"
+	case "credential.password_hash":
+		return "Password hash material detected"
+	case "credential.private_key":
+		return "Private key material detected"
+	case "material.public":
+		return "Public cryptographic material detected"
+	default:
+		return "Sensitive credential material detected"
+	}
+}
+
+func findingRemediation(finding Finding) string {
+	switch finding.Category {
+	case "exposure.security_index":
+		return "Restrict access to Elasticsearch security indices and review the supplied identity's roles."
+	case "material.public":
+		return "Confirm that the public material is expected and stored in an appropriate field."
+	case "credential.password_hash":
+		return "Restrict access to password hashes and review whether this index is an approved identity store."
+	default:
+		return "Revoke or rotate the exposed credential, remove it from indexed documents, and restrict access to the affected index."
+	}
 }
 
 func buildSummary(mode ScanMode, reports []TargetReport, findings []Finding, started, finished time.Time) Summary {
@@ -563,6 +787,9 @@ func buildSummary(mode ScanMode, reports []TargetReport, findings []Finding, sta
 		if report.Error != "" {
 			summary.PartialFailures++
 		}
+		if report.FindingsTruncated {
+			summary.FindingsTruncated = true
+		}
 		summary.IndicesInspected += report.IndicesInspected
 		summary.DocumentsSampled += report.DocumentsSampled
 		summary.DocumentsExamined += report.DocumentsExamined
@@ -574,6 +801,7 @@ func buildSummary(mode ScanMode, reports []TargetReport, findings []Finding, sta
 	}
 	for _, finding := range findings {
 		summary.Findings++
+		summary.Occurrences += finding.Occurrences
 		summary.SeverityCounts[string(finding.Severity)]++
 		summary.CategoryCounts[prettyCategory(finding.Category)]++
 		indexCounts[finding.Index]++

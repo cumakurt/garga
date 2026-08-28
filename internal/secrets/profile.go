@@ -139,6 +139,7 @@ func (options Options) walkLimits() walkLimits {
 		scanGenericFields: options.ScanGenericFields,
 		entropyEnabled:    options.EntropyEnabled,
 		broadCorrelation:  options.BroadCorrelation,
+		maxHits:           MaxReportFindings,
 	}
 }
 

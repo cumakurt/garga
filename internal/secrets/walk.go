@@ -1,6 +1,7 @@
 package secrets
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -13,6 +14,7 @@ type walkLimits struct {
 	scanGenericFields bool
 	entropyEnabled    bool
 	broadCorrelation  bool
+	maxHits           int
 }
 
 type walkStats struct {
@@ -37,7 +39,7 @@ func walkDocumentStats(source any, limits walkLimits) walkResult {
 }
 
 func walkValue(value any, path string, depth int, limits walkLimits, result *walkResult) {
-	if result == nil || depth > limits.maxDepth {
+	if result == nil || depth > limits.maxDepth || hitLimitReached(result, limits) {
 		return
 	}
 	switch typed := value.(type) {
@@ -51,14 +53,18 @@ func walkValue(value any, path string, depth int, limits walkLimits, result *wal
 		}
 		result.stats.fields++
 		result.stats.bytes += int64(len(typed))
-		for _, item := range detectValue(typed, AnalyzeField(path), limits.maxFieldBytes) {
-			if item.FieldPath == "" {
-				item.FieldPath = path
-			}
-			result.hits = append(result.hits, item)
+		detected := detectValue(typed, AnalyzeField(path), limits.maxFieldBytes)
+		if !limits.entropyEnabled {
+			detected = withoutEntropyHits(detected)
 		}
+		for index := range detected {
+			if detected[index].FieldPath == "" {
+				detected[index].FieldPath = path
+			}
+		}
+		appendWalkHits(result, limits, detected)
 		if strings.Contains(typed, "\n") {
-			result.hits = append(result.hits, correlateTextBlock(typed, path, limits.broadCorrelation)...)
+			appendWalkHits(result, limits, correlateTextBlock(typed, path, limits.broadCorrelation))
 		}
 	case []byte:
 		walkValue(string(typed), path, depth, limits, result)
@@ -66,11 +72,13 @@ func walkValue(value any, path string, depth int, limits walkLimits, result *wal
 }
 
 func walkObject(object map[string]any, path string, depth int, limits walkLimits, result *walkResult) {
-	if len(object) > limits.maxObjectSize {
-		return
-	}
-	fields := make([]scopedField, 0, len(object))
-	for key, child := range object {
+	keys := selectWalkKeys(object, limits.maxObjectSize)
+	fields := make([]scopedField, 0, len(keys))
+	for _, key := range keys {
+		if hitLimitReached(result, limits) {
+			break
+		}
+		child := object[key]
 		childPath := joinPath(path, key)
 		if text, ok := child.(string); ok && text != "" {
 			fields = append(fields, scopedField{
@@ -82,7 +90,45 @@ func walkObject(object map[string]any, path string, depth int, limits walkLimits
 		}
 		walkValue(child, childPath, depth+1, limits, result)
 	}
-	result.hits = append(result.hits, CorrelateScope(fields, path, limits.broadCorrelation)...)
+	appendWalkHits(result, limits, CorrelateScope(fields, path, limits.broadCorrelation))
+}
+
+func selectWalkKeys(object map[string]any, limit int) []string {
+	keys := sortedMapKeys(object)
+	if limit <= 0 || len(keys) <= limit {
+		return keys
+	}
+	sensitive := make([]string, 0, limit)
+	rest := make([]string, 0, len(keys))
+	for _, key := range keys {
+		if AnalyzeField(key).Sensitive {
+			sensitive = append(sensitive, key)
+			continue
+		}
+		rest = append(rest, key)
+	}
+	selected := make([]string, 0, limit)
+	selected = append(selected, sensitive...)
+	if len(selected) > limit {
+		return selected[:limit]
+	}
+	selected = append(selected, rest[:limit-len(selected)]...)
+	sort.Strings(selected)
+	return selected
+}
+
+func withoutEntropyHits(hits []hit) []hit {
+	if len(hits) == 0 {
+		return hits
+	}
+	out := make([]hit, 0, len(hits))
+	for _, item := range hits {
+		if item.Detector == "entropy" {
+			continue
+		}
+		out = append(out, item)
+	}
+	return out
 }
 
 func walkArray(items []any, path string, depth int, limits walkLimits, result *walkResult) {
@@ -91,9 +137,32 @@ func walkArray(items []any, path string, depth int, limits walkLimits, result *w
 		limit = len(items)
 	}
 	for index := 0; index < limit; index++ {
+		if hitLimitReached(result, limits) {
+			break
+		}
 		childPath := path + "[" + strconv.Itoa(index) + "]"
 		walkValue(items[index], childPath, depth+1, limits, result)
 	}
+}
+
+func appendWalkHits(result *walkResult, limits walkLimits, hits []hit) {
+	if result == nil || len(hits) == 0 {
+		return
+	}
+	if limits.maxHits > 0 {
+		remaining := limits.maxHits - len(result.hits)
+		if remaining <= 0 {
+			return
+		}
+		if len(hits) > remaining {
+			hits = hits[:remaining]
+		}
+	}
+	result.hits = append(result.hits, hits...)
+}
+
+func hitLimitReached(result *walkResult, limits walkLimits) bool {
+	return limits.maxHits > 0 && len(result.hits) >= limits.maxHits
 }
 
 func joinPath(parent, child string) string {
@@ -117,11 +186,12 @@ func mappingFields(mapping any, prefix string, depth int, limits walkLimits) []F
 		return mappingFields(properties, prefix, depth, limits)
 	}
 	count := 0
-	for name, raw := range object {
+	for _, name := range sortedMapKeys(object) {
 		if count >= limits.maxObjectSize {
 			break
 		}
 		count++
+		raw := object[name]
 		path := joinPath(prefix, name)
 		child, ok := raw.(map[string]any)
 		if !ok {
@@ -166,13 +236,12 @@ func sourceIncludes(fields []FieldSemantics, maxFields int, generic bool) []stri
 	if len(selected) == 0 {
 		return nil
 	}
-	for i := 0; i < len(selected); i++ {
-		for j := i + 1; j < len(selected); j++ {
-			if selected[j].score > selected[i].score {
-				selected[i], selected[j] = selected[j], selected[i]
-			}
+	sort.Slice(selected, func(i, j int) bool {
+		if selected[i].score != selected[j].score {
+			return selected[i].score > selected[j].score
 		}
-	}
+		return selected[i].path < selected[j].path
+	})
 	if maxFields > 0 && len(selected) > maxFields {
 		selected = selected[:maxFields]
 	}
@@ -181,4 +250,13 @@ func sourceIncludes(fields []FieldSemantics, maxFields int, generic bool) []stri
 		out = append(out, item.path)
 	}
 	return out
+}
+
+func sortedMapKeys(object map[string]any) []string {
+	keys := make([]string, 0, len(object))
+	for key := range object {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }

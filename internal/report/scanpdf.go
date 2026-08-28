@@ -17,6 +17,7 @@ func writeScanPDF(output io.Writer, document scanHTMLDocument) error {
 		document.Classification+" | "+document.ReportCode,
 		"garga unauthenticated GET-only assessment",
 	)
+	doc.SetDocumentTime(document.Generated)
 	doc.Logo(garga.LogoPNG())
 	doc.Title("Test Report")
 	doc.Subtitle(document.EngagementType)

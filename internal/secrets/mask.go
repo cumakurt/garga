@@ -9,6 +9,7 @@ import (
 const (
 	privateKeyPreview   = "Private key detected"
 	passwordHashPreview = "Password hash detected"
+	redactedPreview     = "[redacted]"
 )
 
 // Mask returns a console-safe preview of a secret. It never returns the full value
@@ -19,18 +20,25 @@ func Mask(value string) string {
 		return ""
 	}
 	if looksLikePrivateKey(value) {
-		return privateKeyPreview
+		return distinctMask(value, privateKeyPreview)
 	}
 	if kind := classifyPasswordHash(value); kind != "" {
-		return passwordHashPreview + " (" + kind + ")"
+		return distinctMask(value, passwordHashPreview+" ("+kind+")")
 	}
 	if masked, ok := maskURL(value); ok {
-		return masked
+		return distinctMask(value, masked)
 	}
 	if masked, ok := maskBearer(value); ok {
-		return masked
+		return distinctMask(value, masked)
 	}
-	return maskGeneric(value)
+	return distinctMask(value, maskGeneric(value))
+}
+
+func distinctMask(value, masked string) string {
+	if masked == value {
+		return redactedPreview
+	}
+	return masked
 }
 
 func maskGeneric(value string) string {

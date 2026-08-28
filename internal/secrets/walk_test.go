@@ -1,6 +1,9 @@
 package secrets
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestWalkNestedCredentialPair(t *testing.T) {
 	t.Parallel()
@@ -57,5 +60,69 @@ func TestSourceIncludesPrioritizesSensitiveFields(t *testing.T) {
 	includes := sourceIncludes(fields, 8, false)
 	if len(includes) == 0 || includes[0] != "password" {
 		t.Fatalf("includes = %v", includes)
+	}
+}
+
+func TestWalkPrefersSensitiveFieldsWhenObjectExceedsCap(t *testing.T) {
+	t.Parallel()
+	source := map[string]any{
+		"password": "fake-password-garga-test-ONLY",
+	}
+	for index := 0; index < 80; index++ {
+		source[fmt.Sprintf("aaa_%03d", index)] = "not-a-secret"
+	}
+	hits := walkDocument(source, walkLimits{
+		maxDepth: 4, maxArrayItems: 4, maxObjectSize: 8, maxFieldBytes: 1024, entropyEnabled: true,
+	})
+	found := false
+	for _, item := range hits {
+		if item.Category == "credential.password" && item.FieldPath == "password" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("wide object dropped the sensitive field: %v", hitSummary(hits))
+	}
+}
+
+func TestWalkSkipsEntropyWhenDisabled(t *testing.T) {
+	t.Parallel()
+	source := map[string]any{
+		"encryption_key": "s9f8a7d6s5f4a3d2s1f0a9d8s7f6a5d4s3f2garga",
+	}
+	limits := walkLimits{maxDepth: 4, maxArrayItems: 4, maxObjectSize: 16, maxFieldBytes: 1024}
+	disabled := walkDocument(source, limits)
+	for _, item := range disabled {
+		if item.Detector == "entropy" {
+			t.Fatalf("entropy hit retained while disabled: %+v", item)
+		}
+	}
+	limits.entropyEnabled = true
+	enabled := walkDocument(source, limits)
+	found := false
+	for _, item := range enabled {
+		if item.Detector == "entropy" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("enabled entropy walk produced no entropy hit")
+	}
+}
+
+func TestWalkDocumentBoundsRetainedHits(t *testing.T) {
+	t.Parallel()
+	source := map[string]any{
+		"password":      "first-secret-value",
+		"client_secret": "second-secret-value",
+		"api_key":       "third-secret-value",
+		"token":         "fourth-secret-value",
+	}
+	hits := walkDocument(source, walkLimits{
+		maxDepth: 8, maxArrayItems: 8, maxObjectSize: 32, maxFieldBytes: 1024, maxHits: 3,
+	})
+	if len(hits) != 3 {
+		t.Fatalf("retained hits = %d, want hard limit 3", len(hits))
 	}
 }

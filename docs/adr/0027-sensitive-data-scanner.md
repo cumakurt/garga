@@ -15,8 +15,8 @@ Document sampling requires Elasticsearch `_search`. The shared transport (ADR
 0022) rejects every non-GET method, which is the correct default for anonymous
 assessment. Point-in-time search would also require `DELETE` to close the PIT.
 
-Operators still need a masked console/JSON report and a confidential PDF that
-contains recovered secret values for remediation.
+Operators need consistent console, JSON, and PDF reports that can be retained
+without copying recovered plaintext secrets into another artifact.
 
 ## Decision
 
@@ -39,11 +39,17 @@ contains recovered secret values for remediation.
 - Same-object credential correlation runs after per-field detectors. Pairs are
   document-local (one object or one array element). Cross-document matching is
   not performed.
-- Default reports (table, JSON, JSONL, SARIF, stderr summary) contain only
-  masked previews. A timestamped owner-only PDF includes full secret values
-  except private keys and password hashes.
+- A single canonical `ScanReport` / `Finding` model feeds table, JSON, JSONL, SARIF,
+  stderr summary, and PDF output. Raw values are discarded before this model is
+  finalized; every format contains only masked previews.
+- A pre-render validation gate rejects missing or duplicate finding IDs, invalid
+  enums and timestamps, invalid occurrence counts, and summaries that disagree
+  with canonical targets or findings.
 - Deduplication uses a per-run HMAC-SHA256 key. Plaintext secrets are not stored
-  in the dedup index.
+  in the dedup index. Target identity participates in deduplication so equivalent
+  paths on separate clusters cannot merge.
+- Canonical finding retention is capped at 10 000. Hitting the cap is explicit in
+  the report and produces a partial-failure result.
 - System indices are excluded by default. A readable `.security*` index is a
   critical finding; its authentication material is not dumped.
 - `garga secrets generate` may write only to `garga-sensitive-test` with clearly
@@ -53,5 +59,5 @@ contains recovered secret values for remediation.
 
 `garga secrets` is an explicit, authorized mode. It is heavier than GET-only
 health collection and must keep production-safe concurrency, rate limits, and
-HTTP 429 backoff. Machine-readable output stays secret-free so it can be stored
-in CI; the PDF is a confidential engagement artifact.
+HTTP 429 backoff. All output formats stay secret-free. PDF and explicit output
+files remain owner-only confidential assessment artifacts.

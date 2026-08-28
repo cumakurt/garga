@@ -30,8 +30,8 @@ security APIs unless a passive `superuser` role is observed. Those inferred find
 
 ## Findings
 
-Findings use schema version `0.1`. This is a pre-release document shape and is not the public
-`1.0` contract in [ADR 0003](adr/0003-output-versioning.md). Streaming reporters for this schema
+Findings use schema version `1.0`, the public contract in
+[ADR 0003](adr/0003-output-versioning.md). Streaming reporters for this schema
 are documented in [reports.md](reports.md).
 
 Each finding has a deterministic `id` derived from check ID, canonical endpoint, and resource.

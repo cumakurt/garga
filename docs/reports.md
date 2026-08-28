@@ -3,8 +3,7 @@
 Reporters support console, JSON, JSONL, CSV, standalone HTML, SARIF 2.1.0, and CycloneDX 1.6
 VEX. They
 consume `model.Finding` values and do not import the scanner. Machine formats use finding schema
-`0.1`. That is a pre-release document shape and is not the public `1.0` contract in
-[ADR 0003](adr/0003-output-versioning.md).
+`1.0`, the public contract in [ADR 0003](adr/0003-output-versioning.md).
 
 `garga scan`, `garga vuln`, and `garga report` share these writers. Scan and vuln stream findings
 as they are produced.
@@ -24,7 +23,7 @@ command does not contact the network. Invalid records exit `2` and are not echoe
 | Format | Contract |
 |---|---|
 | `jsonl` | One self-describing finding object per line. Writers do not retain the complete scan. |
-| `json` | A document `{"schema_version":"0.1","findings":[...]}`. Findings are marshaled as they arrive. |
+| `json` | A document `{"schema_version":"1.0","findings":[...]}`. Findings are marshaled as they arrive. |
 | `csv` | A header row plus one row per finding, including `cve`, `cvss`, and `description`. Formula-like cells are prefixed with `'`. Machine formats also print a grouped console summary on stderr. |
 | `html` | A standalone document with inline CSS. All text is HTML-escaped. There are no scripts, links, images, or other network resources. Exploitable rows are highlighted. Each row's evidence cell lists observed proof cards (native codes plus target, transport, and product facts). |
 | `sarif` | A deterministic SARIF 2.1.0 log. Check IDs become rules, findings become results, targets become artifact locations, and stable finding IDs become partial fingerprints. |
@@ -34,7 +33,7 @@ command does not contact the network. Invalid records exit `2` and are not echoe
 JSON, JSONL, CSV, and HTML emit findings in write order. SARIF and VEX retain at most 100,000
 findings so they can construct schema-level rule and component indexes deterministically. Console buffers until `Close` and
 groups by target, then lists exploitable findings first, then severity (critical first). Empty
-schema versions are set to `0.1` on write.
+schema versions are set to `1.0` on write.
 
 A finding is marked `exploitable` when evidence shows unauthenticated `read`/`write`/`admin`
 access, or when a signature looks like a remote-compromise class (RCE, untrusted

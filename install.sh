@@ -459,7 +459,7 @@ build_application() {
 	mkdir -p -- "$(dirname -- "${BINARY_PATH}")"
 	TEMP_BINARY="$(mktemp "${BINARY_PATH}.tmp.XXXXXX")"
 	info "Building garga. The existing binary will remain untouched if the build fails."
-	if ! go build -trimpath -o "${TEMP_BINARY}" ./cmd/garga; then
+	if ! make -C "${PROJECT_ROOT}" build BINARY="${TEMP_BINARY}"; then
 		fail "garga build failed. Review the compiler output, correct the reported issue, and rerun ./install.sh."
 	fi
 	chmod 0755 "${TEMP_BINARY}"

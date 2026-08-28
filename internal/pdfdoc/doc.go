@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/go-pdf/fpdf"
@@ -30,6 +31,8 @@ func New(title, classification, footer string) *Doc {
 	pdf := fpdf.New("P", "mm", "A4", "")
 	// Keep page streams uncompressed so operators can search report text in the file.
 	pdf.SetCompression(false)
+	pdf.SetCatalogSort(true)
+	registerReportFonts(pdf)
 	pdf.SetTitle(safe(title), false)
 	pdf.SetAuthor("garga", false)
 	pdf.SetMargins(margin, 18, margin)
@@ -41,14 +44,14 @@ func New(title, classification, footer string) *Doc {
 		}
 		pdf.SetFillColor(17, 24, 39)
 		pdf.SetTextColor(255, 255, 255)
-		pdf.SetFont("Helvetica", "B", 8)
+		pdf.SetFont(reportFont, "B", 8)
 		pdf.CellFormat(contentWidth, 7, doc.classification, "0", 1, "C", true, 0, "")
 		pdf.Ln(4)
 		pdf.SetTextColor(23, 32, 51)
 	})
 	pdf.SetFooterFunc(func() {
 		pdf.SetY(-12)
-		pdf.SetFont("Helvetica", "", 8)
+		pdf.SetFont(reportFont, "", 8)
 		pdf.SetTextColor(95, 107, 122)
 		label := doc.footer
 		if label != "" {
@@ -59,6 +62,16 @@ func New(title, classification, footer string) *Doc {
 	})
 	pdf.AddPage()
 	return doc
+}
+
+// SetDocumentTime makes PDF metadata reproducible for a canonical report.
+func (doc *Doc) SetDocumentTime(value time.Time) {
+	if doc == nil || doc.pdf == nil || value.IsZero() {
+		return
+	}
+	value = value.UTC()
+	doc.pdf.SetCreationDate(value)
+	doc.pdf.SetModificationDate(value)
 }
 
 func (doc *Doc) Logo(png []byte) {
@@ -72,7 +85,7 @@ func (doc *Doc) Logo(png []byte) {
 }
 
 func (doc *Doc) Title(text string) {
-	doc.pdf.SetFont("Helvetica", "B", 18)
+	doc.pdf.SetFont(reportFont, "B", 18)
 	doc.pdf.SetTextColor(7, 89, 133)
 	doc.pdf.MultiCell(contentWidth, 8, safe(text), "", "", false)
 	doc.pdf.SetTextColor(23, 32, 51)
@@ -80,7 +93,7 @@ func (doc *Doc) Title(text string) {
 }
 
 func (doc *Doc) Subtitle(text string) {
-	doc.pdf.SetFont("Helvetica", "", 10)
+	doc.pdf.SetFont(reportFont, "", 10)
 	doc.pdf.SetTextColor(95, 107, 122)
 	doc.pdf.MultiCell(contentWidth, 5, safe(text), "", "", false)
 	doc.pdf.SetTextColor(23, 32, 51)
@@ -89,7 +102,7 @@ func (doc *Doc) Subtitle(text string) {
 
 func (doc *Doc) Section(text string) {
 	doc.ensure(16)
-	doc.pdf.SetFont("Helvetica", "B", 13)
+	doc.pdf.SetFont(reportFont, "B", 13)
 	doc.pdf.SetTextColor(7, 89, 133)
 	doc.pdf.MultiCell(contentWidth, 7, safe(text), "", "", false)
 	doc.pdf.SetDrawColor(217, 226, 236)
@@ -101,7 +114,7 @@ func (doc *Doc) Section(text string) {
 
 func (doc *Doc) Heading(text string) {
 	doc.ensure(12)
-	doc.pdf.SetFont("Helvetica", "B", 11)
+	doc.pdf.SetFont(reportFont, "B", 11)
 	doc.pdf.MultiCell(contentWidth, 6, safe(text), "", "", false)
 	doc.pdf.Ln(1)
 }
@@ -110,7 +123,7 @@ func (doc *Doc) Para(text string) {
 	if strings.TrimSpace(text) == "" {
 		return
 	}
-	doc.pdf.SetFont("Helvetica", "", 9)
+	doc.pdf.SetFont(reportFont, "", 9)
 	doc.pdf.MultiCell(contentWidth, 4.4, safe(text), "", "", false)
 	doc.pdf.Ln(1.5)
 }
@@ -119,14 +132,14 @@ func (doc *Doc) KV(key, value string) {
 	if strings.TrimSpace(value) == "" {
 		return
 	}
-	doc.pdf.SetFont("Helvetica", "B", 8)
+	doc.pdf.SetFont(reportFont, "B", 8)
 	doc.pdf.CellFormat(42, 4.4, safe(key), "", 0, "L", false, 0, "")
-	doc.pdf.SetFont("Helvetica", "", 8)
+	doc.pdf.SetFont(reportFont, "", 8)
 	doc.pdf.MultiCell(contentWidth-42, 4.4, safe(value), "", "", false)
 }
 
 func (doc *Doc) Bullets(items []string) {
-	doc.pdf.SetFont("Helvetica", "", 9)
+	doc.pdf.SetFont(reportFont, "", 9)
 	for _, item := range items {
 		item = strings.TrimSpace(item)
 		if item == "" {
@@ -144,8 +157,8 @@ func (doc *Doc) Badge(severity, title string) {
 	const gap = 2.0
 	const lineHeight = 5.0
 	titleWidth := contentWidth - chip - gap
-	doc.pdf.SetFont("Helvetica", "B", 10)
-	lines := doc.wrap(safe(title), titleWidth)
+	doc.pdf.SetFont(reportFont, "B", 10)
+	lines := doc.wrap(title, titleWidth)
 	height := 6.0
 	if needed := float64(len(lines)) * lineHeight; needed > height {
 		height = needed
@@ -156,10 +169,10 @@ func (doc *Doc) Badge(severity, title string) {
 	doc.pdf.SetXY(left, y)
 	doc.pdf.SetFillColor(r, g, b)
 	doc.pdf.SetTextColor(255, 255, 255)
-	doc.pdf.SetFont("Helvetica", "B", 8)
+	doc.pdf.SetFont(reportFont, "B", 8)
 	doc.pdf.CellFormat(chip, 6, strings.ToUpper(safe(severity)), "0", 0, "C", true, 0, "")
 	doc.pdf.SetTextColor(23, 32, 51)
-	doc.pdf.SetFont("Helvetica", "B", 10)
+	doc.pdf.SetFont(reportFont, "B", 10)
 	cy := y
 	for _, line := range lines {
 		doc.pdf.SetXY(left+chip+gap, cy)
@@ -249,9 +262,9 @@ func (doc *Doc) writeTableHeader(headers []string, widths []float64) {
 
 func (doc *Doc) tableRowHeight(cells []string, widths []float64, header bool) float64 {
 	if header {
-		doc.pdf.SetFont("Helvetica", "B", 7)
+		doc.pdf.SetFont(reportFont, "B", 7)
 	} else {
-		doc.pdf.SetFont("Helvetica", "", 7)
+		doc.pdf.SetFont(reportFont, "", 7)
 	}
 	height := tableLineHeight + 2*tableCellPad
 	for index, width := range widths {
@@ -275,9 +288,9 @@ func (doc *Doc) paintTableRow(cells []string, widths []float64, height float64, 
 			value = cells[index]
 		}
 		if header {
-			doc.pdf.SetFont("Helvetica", "B", 7)
+			doc.pdf.SetFont(reportFont, "B", 7)
 		} else {
-			doc.pdf.SetFont("Helvetica", "", 7)
+			doc.pdf.SetFont(reportFont, "", 7)
 		}
 		lines[index] = doc.wrap(value, width-1.6)
 	}
@@ -292,7 +305,7 @@ func (doc *Doc) writeTableBodyRow(headers, cells []string, widths []float64, sev
 		if index < len(cells) {
 			value = cells[index]
 		}
-		doc.pdf.SetFont("Helvetica", "", 7)
+		doc.pdf.SetFont(reportFont, "", 7)
 		lines[index] = doc.wrap(value, width-1.6)
 		if len(lines[index]) > maximumLines {
 			maximumLines = len(lines[index])
@@ -329,24 +342,24 @@ func (doc *Doc) paintTableRowLines(lines [][]string, widths []float64, height fl
 		case header:
 			doc.pdf.SetFillColor(17, 24, 39)
 			doc.pdf.SetTextColor(255, 255, 255)
-			doc.pdf.SetFont("Helvetica", "B", 7)
+			doc.pdf.SetFont(reportFont, "B", 7)
 			fill = true
 		case severityColumn >= 0 && index == severityColumn && severity != "":
 			r, g, b := severityRGB(severity)
 			doc.pdf.SetFillColor(r, g, b)
 			doc.pdf.SetTextColor(255, 255, 255)
-			doc.pdf.SetFont("Helvetica", "B", 7)
+			doc.pdf.SetFont(reportFont, "B", 7)
 			fill = true
 		case severity != "":
 			doc.pdf.SetFillColor(washR, washG, washB)
-			doc.pdf.SetFont("Helvetica", "", 7)
+			doc.pdf.SetFont(reportFont, "", 7)
 			fill = true
 		case rowIndex%2 == 1:
 			doc.pdf.SetFillColor(247, 250, 252)
-			doc.pdf.SetFont("Helvetica", "", 7)
+			doc.pdf.SetFont(reportFont, "", 7)
 			fill = true
 		default:
-			doc.pdf.SetFont("Helvetica", "", 7)
+			doc.pdf.SetFont(reportFont, "", 7)
 		}
 		style := "D"
 		if fill {
@@ -403,7 +416,7 @@ func (doc *Doc) GroupBanner(severity, text string) {
 	doc.pdf.SetFillColor(r, g, b)
 	doc.pdf.Rect(left, y, 2.4, height, "F")
 	doc.pdf.SetTextColor(r, g, b)
-	doc.pdf.SetFont("Helvetica", "B", 10)
+	doc.pdf.SetFont(reportFont, "B", 10)
 	doc.pdf.SetXY(left+6, y+1.6)
 	doc.pdf.CellFormat(contentWidth-8, 5, text, "", 0, "L", false, 0, "")
 	doc.pdf.SetXY(left, y+height+2)
@@ -421,9 +434,9 @@ func (doc *Doc) FindingCard(number int, id, severity, title string, flags []stri
 			kicker += "    " + strings.ToUpper(safe(flag))
 		}
 	}
-	doc.pdf.SetFont("Helvetica", "B", 10)
+	doc.pdf.SetFont(reportFont, "B", 10)
 	kickerLines := doc.wrap(kicker, contentWidth-8)
-	doc.pdf.SetFont("Helvetica", "B", 11)
+	doc.pdf.SetFont(reportFont, "B", 11)
 	titleLines := doc.wrap(title, contentWidth-8)
 	headerHeight := 3.0 + float64(len(kickerLines))*5.0 + float64(len(titleLines))*5.4 + 3.0
 	if doc.pdf.GetY()+headerHeight+24 > pageBottom() {
@@ -436,13 +449,13 @@ func (doc *Doc) FindingCard(number int, id, severity, title string, flags []stri
 	doc.pdf.Rect(left, y, 2.4, headerHeight, "F")
 	doc.pdf.SetTextColor(255, 255, 255)
 	cy := y + 3.0
-	doc.pdf.SetFont("Helvetica", "B", 10)
+	doc.pdf.SetFont(reportFont, "B", 10)
 	for _, line := range kickerLines {
 		doc.pdf.SetXY(left+6, cy)
 		doc.pdf.CellFormat(contentWidth-8, 5, line, "", 0, "L", false, 0, "")
 		cy += 5
 	}
-	doc.pdf.SetFont("Helvetica", "B", 11)
+	doc.pdf.SetFont(reportFont, "B", 11)
 	for _, line := range titleLines {
 		doc.pdf.SetXY(left+6, cy)
 		doc.pdf.CellFormat(contentWidth-8, 5.4, line, "", 0, "L", false, 0, "")
@@ -482,9 +495,9 @@ func (doc *Doc) writeFieldRow(headers, cells []string, widths []float64) {
 			value = cells[index]
 		}
 		if index == 0 {
-			doc.pdf.SetFont("Helvetica", "B", 7)
+			doc.pdf.SetFont(reportFont, "B", 7)
 		} else {
-			doc.pdf.SetFont("Helvetica", "", 8)
+			doc.pdf.SetFont(reportFont, "", 8)
 		}
 		lines[index] = doc.wrap(value, width-1.6)
 		if len(lines[index]) > maximumLines {
@@ -501,7 +514,7 @@ func (doc *Doc) writeFieldRow(headers, cells []string, widths []float64) {
 		count := minInt(maximumLines-offset, available)
 		chunk := cellLineChunk(lines, offset, count)
 		if offset > 0 && strings.TrimSpace(cells[0]) != "" {
-			doc.pdf.SetFont("Helvetica", "B", 7)
+			doc.pdf.SetFont(reportFont, "B", 7)
 			chunk[0] = doc.wrap(cells[0], widths[0]-1.6)
 		}
 		height := float64(count)*tableLineHeight + 2*tableCellPad
@@ -522,12 +535,12 @@ func (doc *Doc) paintFieldRowLines(lines [][]string, widths []float64, height fl
 		if index == 0 {
 			doc.pdf.SetFillColor(236, 242, 247)
 			doc.pdf.Rect(x, y, width, height, "DF")
-			doc.pdf.SetFont("Helvetica", "B", 7)
+			doc.pdf.SetFont(reportFont, "B", 7)
 			doc.pdf.SetTextColor(55, 65, 81)
 		} else {
 			doc.pdf.SetFillColor(255, 255, 255)
 			doc.pdf.Rect(x, y, width, height, "D")
-			doc.pdf.SetFont("Helvetica", "", 8)
+			doc.pdf.SetFont(reportFont, "", 8)
 			doc.pdf.SetTextColor(23, 32, 51)
 		}
 		cy := y + tableCellPad
@@ -585,6 +598,8 @@ func severityRGB(severity string) (int, int, int) {
 		return 161, 98, 7
 	case "LOW":
 		return 3, 105, 161
+	case "INFO":
+		return 100, 116, 139
 	case "OK", "HEALTHY", "PERFECT":
 		return 21, 128, 61
 	default:
@@ -605,6 +620,7 @@ func maxInt(left, right int) int {
 }
 
 func safe(value string) string {
+	value = strings.Join(strings.Fields(value), " ")
 	var builder strings.Builder
 	builder.Grow(len(value))
 	for _, character := range value {
@@ -623,17 +639,44 @@ func safe(value string) string {
 			if character < 32 || character == 127 {
 				continue
 			}
-			if character > 255 {
-				if unicode.IsLetter(character) || unicode.IsNumber(character) {
-					builder.WriteByte('?')
-					continue
-				}
+			if encoded, ok := cp1254Byte(character); ok {
+				builder.WriteByte(encoded)
 				continue
 			}
-			builder.WriteRune(character)
+			if unicode.IsLetter(character) || unicode.IsNumber(character) {
+				builder.WriteByte('?')
+			}
 		}
 	}
-	return strings.TrimSpace(strings.Join(strings.Fields(builder.String()), " "))
+	return strings.TrimSpace(builder.String())
+}
+
+func cp1254Byte(character rune) (byte, bool) {
+	switch character {
+	case 'Ğ':
+		return 0xD0, true
+	case 'İ':
+		return 0xDD, true
+	case 'Ş':
+		return 0xDE, true
+	case 'ğ':
+		return 0xF0, true
+	case 'ı':
+		return 0xFD, true
+	case 'ş':
+		return 0xFE, true
+	case '€':
+		return 0x80, true
+	}
+	if character >= 0x20 && character <= 0xFF {
+		switch character {
+		case 0xD0, 0xDD, 0xDE, 0xF0, 0xFD, 0xFE:
+			return 0, false
+		default:
+			return byte(character), true
+		}
+	}
+	return 0, false
 }
 
 func (doc *Doc) wrap(text string, width float64) []string {
@@ -653,7 +696,7 @@ func (doc *Doc) wrap(text string, width float64) []string {
 		lines = append(lines, current)
 		current = ""
 	}
-	for _, word := range strings.Fields(text) {
+	for _, word := range strings.Split(text, " ") {
 		for doc.pdf.GetStringWidth(word) > width {
 			flush()
 			fitted := doc.fit(word, width)
@@ -688,17 +731,19 @@ func (doc *Doc) fit(text string, width float64) string {
 	if text == "" || doc.pdf.GetStringWidth(text) <= width {
 		return text
 	}
-	runes := []rune(text)
-	low, high := 1, len(runes)
+	// safe converts supported text to the single-byte CP1254 encoding expected
+	// by the registered PDF font. Slice bytes here so a long Turkish word is not
+	// corrupted by Go's UTF-8 rune decoder before it reaches fpdf.
+	low, high := 1, len(text)
 	for low < high {
 		mid := (low + high + 1) / 2
-		if doc.pdf.GetStringWidth(string(runes[:mid])) <= width {
+		if doc.pdf.GetStringWidth(text[:mid]) <= width {
 			low = mid
 		} else {
 			high = mid - 1
 		}
 	}
-	return string(runes[:low])
+	return text[:low]
 }
 
 // WriteCWD writes a 0600 timestamped file in the working directory, then renames

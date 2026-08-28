@@ -50,6 +50,9 @@ report or test fixture.
 
 ## Supported versions
 
-The project is pre-release. Until the first tagged binary, only `main` is assessed for security
-fixes. After tags exist, this section will list supported versions and disclosure timelines.
+| Version | Security fixes |
+|---|---|
+| v0.1.x | Yes |
+| unreleased `main` | Yes, until the next tag |
+
 See [docs/release.md](docs/release.md) for artifact verification and rollback.

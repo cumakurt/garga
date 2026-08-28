@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -60,7 +61,7 @@ func TestTableWrapsFindingRegisterWithoutOverflow(t *testing.T) {
 	}
 
 	measure := New("test", "Confidential", "footer")
-	measure.pdf.SetFont("Helvetica", "", 7)
+	measure.pdf.SetFont(reportFont, "", 7)
 	widths := tableColumnWidths(headers)
 	for index, cell := range row {
 		limit := widths[index] - 1.6
@@ -80,6 +81,37 @@ func TestTableWrapsFindingRegisterWithoutOverflow(t *testing.T) {
 	statusLines := measure.wrap("Open / EXPLOITABLE", widths[6]-1.6)
 	if !containsLine(statusLines, "EXPLOITABLE") {
 		t.Fatalf("status label was split across characters: %#v", statusLines)
+	}
+}
+
+func TestPDFPreservesTurkishText(t *testing.T) {
+	const turkishText = "ç Ç ğ Ğ ı İ ö Ö ş Ş ü Ü"
+	doc := New("Türkçe güvenlik raporu", "Gizli", "İstanbul")
+	doc.Para(turkishText)
+
+	var output bytes.Buffer
+	if err := doc.Write(&output); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(output.Bytes(), []byte{0xE7, ' ', 0xC7, ' ', 0xF0, ' ', 0xD0}) {
+		t.Fatal("PDF content does not contain the expected CP1254 Turkish glyph sequence")
+	}
+
+	pdfToText, err := exec.LookPath("pdftotext")
+	if err != nil {
+		t.Skip("pdftotext is required for PDF Unicode extraction verification")
+	}
+	path := filepath.Join(t.TempDir(), "turkish.pdf")
+	if err := os.WriteFile(path, output.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	extracted, err := exec.Command(pdfToText, path, "-").CombinedOutput()
+	if err != nil {
+		t.Fatalf("extract PDF text: %v: %s", err, extracted)
+	}
+	normalized := strings.NewReplacer(" ", "", "\n", "", "\r", "", "\f", "").Replace(string(extracted))
+	if !strings.Contains(normalized, strings.ReplaceAll(turkishText, " ", "")) {
+		t.Fatalf("extracted text = %q, want it to contain %q", extracted, turkishText)
 	}
 }
 

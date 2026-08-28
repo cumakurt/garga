@@ -49,6 +49,30 @@ type esResponse struct {
 	Body       []byte
 }
 
+type esHTTPError struct {
+	method     string
+	path       string
+	statusCode int
+}
+
+func (err *esHTTPError) Error() string {
+	return fmt.Sprintf("%s %s returned HTTP %d %s", err.method, err.path, err.statusCode, http.StatusText(err.statusCode))
+}
+
+type esDecodeError struct {
+	path string
+	err  error
+}
+
+func (err *esDecodeError) Error() string { return fmt.Sprintf("decode %s: %v", err.path, err.err) }
+func (err *esDecodeError) Unwrap() error { return err.err }
+
+func responseWasReceived(err error) bool {
+	var statusErr *esHTTPError
+	var decodeErr *esDecodeError
+	return errors.As(err, &statusErr) || errors.As(err, &decodeErr)
+}
+
 func newESClient(endpoint model.Endpoint, secret *credential.Secret, options Options, userAgent string) (*esClient, error) {
 	if _, err := endpoint.URL(); err != nil {
 		return nil, fmt.Errorf("secrets target: %w", err)
@@ -96,7 +120,7 @@ func newESClient(endpoint model.Endpoint, secret *credential.Secret, options Opt
 					return errors.New("redirect method or path is not allowlisted")
 				}
 				if len(via) > 0 && (via[len(via)-1].URL.Scheme != request.URL.Scheme || via[len(via)-1].URL.Host != request.URL.Host) {
-					request.Header.Del("Authorization")
+					stripRedirectCredentials(request)
 				}
 				return nil
 			},
@@ -140,13 +164,13 @@ func (client *esClient) getJSON(ctx context.Context, path string, query url.Valu
 		return err
 	}
 	if response.StatusCode < 200 || response.StatusCode > 299 {
-		return fmt.Errorf("GET %s returned HTTP %d", path, response.StatusCode)
+		return &esHTTPError{method: http.MethodGet, path: path, statusCode: response.StatusCode}
 	}
 	if dest == nil {
 		return nil
 	}
 	if err := json.Unmarshal(response.Body, dest); err != nil {
-		return fmt.Errorf("decode %s: %w", path, err)
+		return &esDecodeError{path: path, err: err}
 	}
 	return nil
 }
@@ -164,7 +188,7 @@ func (client *esClient) postSearch(ctx context.Context, index string, body []byt
 		return err
 	}
 	if response.StatusCode < 200 || response.StatusCode > 299 {
-		return fmt.Errorf("POST %s returned HTTP %d", path, response.StatusCode)
+		return &esHTTPError{method: http.MethodPost, path: path, statusCode: response.StatusCode}
 	}
 	if err := json.Unmarshal(response.Body, dest); err != nil {
 		return fmt.Errorf("decode search response: %w", err)
@@ -244,6 +268,8 @@ func (client *esClient) do(ctx context.Context, method, path string, query url.V
 			client.mu.Lock()
 			client.failed++
 			client.mu.Unlock()
+		} else {
+			client.decaySlowdown()
 		}
 		return esResponse{StatusCode: httpResponse.StatusCode, Body: payload}, nil
 	}
@@ -341,6 +367,16 @@ func retryableStatus(status int, err error) bool {
 	}
 }
 
+func stripRedirectCredentials(request *http.Request) {
+	if request == nil {
+		return
+	}
+	request.Header.Del("Authorization")
+	request.Header.Del("Proxy-Authorization")
+	request.Header.Del("Cookie")
+	request.Header.Del("Referer")
+}
+
 func (client *esClient) noteSlowdown() {
 	if client == nil {
 		return
@@ -354,6 +390,18 @@ func (client *esClient) noteSlowdown() {
 	client.slowdown *= 2
 	if client.slowdown > 4*time.Second {
 		client.slowdown = 4 * time.Second
+	}
+}
+
+func (client *esClient) decaySlowdown() {
+	if client == nil {
+		return
+	}
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	client.slowdown /= 2
+	if client.slowdown < 100*time.Millisecond {
+		client.slowdown = 0
 	}
 }
 

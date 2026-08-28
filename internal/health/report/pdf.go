@@ -32,6 +32,7 @@ func writePDF(output io.Writer, report healthmodel.Report) error {
 		classification,
 		producer,
 	)
+	doc.SetDocumentTime(generated)
 	doc.Logo(garga.LogoPNG())
 	doc.Title(title)
 	doc.Subtitle(subtitle)

@@ -28,7 +28,7 @@ testing difficult to enforce.
 - Baseline files contain a minimal secret-free counter model and are cluster- and time-bound.
 - Authentication is outside general YAML configuration. Plaintext credential transport is denied
   by default, and all reporter inputs pass through centralized redaction.
-- Health report schema `1.0` is independent from the pre-release streaming finding schema used by
+- Health report schema `1.0` is independent from the streaming finding schema used by
   other commands.
 
 ## Consequences

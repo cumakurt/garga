@@ -7,9 +7,8 @@ import (
 	"time"
 )
 
-// FindingSchemaVersion is the pre-release finding document version.
-// It is not the public 1.0 contract from ADR 0003.
-const FindingSchemaVersion = "0.1"
+// FindingSchemaVersion is the public streaming finding document version (ADR 0003).
+const FindingSchemaVersion = "1.0"
 
 // Severity is the impact of a finding and is independent of confidence.
 type Severity string
