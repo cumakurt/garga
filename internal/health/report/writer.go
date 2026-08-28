@@ -66,7 +66,36 @@ func sanitizeReport(report healthmodel.Report) healthmodel.Report {
 		report.Correlations[index].ProbableRootCause = redact.Text(report.Correlations[index].ProbableRootCause)
 		report.Correlations[index].FindingIDs = append([]string(nil), report.Correlations[index].FindingIDs...)
 		report.Correlations[index].Evidence = append([]string(nil), report.Correlations[index].Evidence...)
+		for evidenceIndex := range report.Correlations[index].Evidence {
+			report.Correlations[index].Evidence[evidenceIndex] = redact.Text(report.Correlations[index].Evidence[evidenceIndex])
+		}
 	}
 	report.Metadata.Target = redact.Text(report.Metadata.Target)
+	report.Summary.LargestIndex = sanitizeUsage(report.Summary.LargestIndex)
+	report.Summary.HighestDiskUsage = sanitizeUsage(report.Summary.HighestDiskUsage)
+	report.Summary.HighestJVMUsage = sanitizeUsage(report.Summary.HighestJVMUsage)
+	report.Metrics.TopIndicesByStorage = sanitizeUsageList(report.Metrics.TopIndicesByStorage)
+	report.Metrics.TopIndicesByDocuments = sanitizeUsageList(report.Metrics.TopIndicesByDocuments)
+	report.Metrics.TopIndicesByShards = sanitizeUsageList(report.Metrics.TopIndicesByShards)
+	report.Metrics.TopNodesByDisk = sanitizeUsageList(report.Metrics.TopNodesByDisk)
+	report.Metrics.TopNodesByJVM = sanitizeUsageList(report.Metrics.TopNodesByJVM)
+	report.Metrics.TopNodesByShards = sanitizeUsageList(report.Metrics.TopNodesByShards)
 	return report
+}
+
+func sanitizeUsageList(values []healthmodel.ResourceUsage) []healthmodel.ResourceUsage {
+	if len(values) == 0 {
+		return values
+	}
+	out := append([]healthmodel.ResourceUsage(nil), values...)
+	for index := range out {
+		out[index] = sanitizeUsage(out[index])
+	}
+	return out
+}
+
+func sanitizeUsage(value healthmodel.ResourceUsage) healthmodel.ResourceUsage {
+	value.Resource = redact.Text(value.Resource)
+	value.Unit = redact.Text(value.Unit)
+	return value
 }

@@ -291,6 +291,9 @@ func newWriteClient(endpoint model.Endpoint, secret *credential.Secret, options 
 				ResponseHeaderTimeout: options.RequestTimeout,
 				TLSClientConfig:       tlsConf,
 			},
+			CheckRedirect: func(request *http.Request, via []*http.Request) error {
+				return applyRedirectPolicy(request, via, allowlistedWriteRequest, false)
+			},
 		},
 		endpoint:  endpoint,
 		secret:    secret,
@@ -299,8 +302,12 @@ func newWriteClient(endpoint model.Endpoint, secret *credential.Secret, options 
 	}, nil
 }
 
+func allowlistedWriteRequest(method, path string) bool {
+	return method == http.MethodPut && strings.HasPrefix(path, "/"+TestIndex+"/")
+}
+
 func (client *writeClient) putJSON(ctx context.Context, path string, body []byte) error {
-	if !strings.HasPrefix(path, "/"+TestIndex+"/") {
+	if !allowlistedWriteRequest(http.MethodPut, path) {
 		return fmt.Errorf("generator may only write to %s", TestIndex)
 	}
 	base, err := client.endpoint.URL()

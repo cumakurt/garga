@@ -284,9 +284,14 @@ func correlateTextBlock(value, path string, broad bool) []hit {
 	return CorrelateScope(fields, path, broad)
 }
 
+const maxAssignmentFields = 256
+
 func parseAssignmentFields(value, path string) []scopedField {
 	var fields []scopedField
 	for _, line := range strings.Split(value, "\n") {
+		if len(fields) >= maxAssignmentFields {
+			break
+		}
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue

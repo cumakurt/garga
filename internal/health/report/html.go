@@ -115,9 +115,13 @@ func healthTone(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "critical":
 		return "CRITICAL"
-	case "degraded":
+	case "high risk":
 		return "HIGH"
-	case "healthy":
+	case "degraded":
+		return "MEDIUM"
+	case "minor issues":
+		return "LOW"
+	case "healthy", "perfect":
 		return "OK"
 	default:
 		return "INFO"

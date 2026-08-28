@@ -75,7 +75,7 @@ and is omitted by default.
 
 ## Masking
 
-Console, JSON, JSONL, table, SARIF, and PDF never include the full secret:
+Table, JSON, JSONL, SARIF, and PDF never include the full secret:
 
 - `password` → `p***********d`
 - AWS access key → `AKIA****************`
@@ -85,7 +85,7 @@ Console, JSON, JSONL, table, SARIF, and PDF never include the full secret:
 - password hashes → `Password hash detected (bcrypt)`
 
 The timestamped PDF written to the current directory (`garga-secrets-*.pdf`, mode
-`0600`) renders the same canonical masked findings as JSON and console output.
+`0600`) renders the same canonical masked findings as JSON and table output.
 Raw values are discarded before the canonical report is finalized. Private keys
 and password hashes remain type-only.
 

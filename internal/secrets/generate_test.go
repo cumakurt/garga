@@ -1,8 +1,16 @@
 package secrets
 
 import (
+	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
+
+	"github.com/cumakurt/garga/internal/credential"
 )
 
 func TestSyntheticDocumentsCoverDetectors(t *testing.T) {
@@ -90,5 +98,53 @@ func TestGoogleAPIKeyLength(t *testing.T) {
 	key := "AIza" + "SyDl" + strings.Repeat("A", 31)
 	if rest := strings.TrimPrefix(key, "AIza"); len(rest) != 35 {
 		t.Fatalf("google api key suffix length = %d, want 35", len(rest))
+	}
+}
+
+func TestWriteClientRejectsCrossOriginRedirect(t *testing.T) {
+	t.Parallel()
+	var destinationHits atomic.Int32
+	var leakedAuth atomic.Bool
+	destination := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		destinationHits.Add(1)
+		if request.Header.Get("Authorization") != "" {
+			leakedAuth.Store(true)
+		}
+		_, _ = io.Copy(io.Discard, request.Body)
+		writer.WriteHeader(http.StatusCreated)
+	}))
+	defer destination.Close()
+	origin := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		http.Redirect(writer, request, destination.URL+request.URL.Path, http.StatusTemporaryRedirect)
+	}))
+	defer origin.Close()
+
+	parsed, err := parseTargets([]string{origin.URL})
+	if err != nil || len(parsed) != 1 {
+		t.Fatalf("parseTargets() = %v %v", parsed, err)
+	}
+	secret, err := credential.NewBearer([]byte(plaintextCanary))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer secret.Destroy()
+	client, err := newWriteClient(parsed[0].endpoint, secret, Options{
+		AllowPlaintextAuth: true,
+		RequestTimeout:     time.Second,
+		RateLimit:          100,
+	}, "garga/test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.http.CloseIdleConnections()
+	err = client.putJSON(context.Background(), "/"+TestIndex+"/_doc/redirect", []byte(`{"n":1}`))
+	if err == nil {
+		t.Fatal("write client followed a cross-origin redirect")
+	}
+	if destinationHits.Load() != 0 {
+		t.Fatalf("destination received %d requests", destinationHits.Load())
+	}
+	if leakedAuth.Load() {
+		t.Fatal("destination received Authorization")
 	}
 }

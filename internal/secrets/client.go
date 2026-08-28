@@ -110,19 +110,7 @@ func newESClient(endpoint model.Endpoint, secret *credential.Secret, options Opt
 			Transport: transportHTTP,
 			Timeout:   options.RequestTimeout,
 			CheckRedirect: func(request *http.Request, via []*http.Request) error {
-				if len(via) >= 3 {
-					return errors.New("too many redirects")
-				}
-				if request.URL.User != nil {
-					return errors.New("redirect with userinfo is not allowed")
-				}
-				if !allowlistedRequest(request.Method, request.URL.Path) {
-					return errors.New("redirect method or path is not allowlisted")
-				}
-				if len(via) > 0 && (via[len(via)-1].URL.Scheme != request.URL.Scheme || via[len(via)-1].URL.Host != request.URL.Host) {
-					stripRedirectCredentials(request)
-				}
-				return nil
+				return applyRedirectPolicy(request, via, allowlistedRequest, true)
 			},
 		},
 		endpoint:  endpoint,
@@ -365,6 +353,28 @@ func retryableStatus(status int, err error) bool {
 	default:
 		return false
 	}
+}
+
+func applyRedirectPolicy(request *http.Request, via []*http.Request, allowlisted func(method, path string) bool, allowCrossOrigin bool) error {
+	if request == nil {
+		return errors.New("redirect request is required")
+	}
+	if len(via) >= 3 {
+		return errors.New("too many redirects")
+	}
+	if request.URL.User != nil {
+		return errors.New("redirect with userinfo is not allowed")
+	}
+	if allowlisted == nil || !allowlisted(request.Method, request.URL.Path) {
+		return errors.New("redirect method or path is not allowlisted")
+	}
+	if len(via) > 0 && (via[len(via)-1].URL.Scheme != request.URL.Scheme || via[len(via)-1].URL.Host != request.URL.Host) {
+		if !allowCrossOrigin {
+			return errors.New("cross-origin redirect is not allowed")
+		}
+		stripRedirectCredentials(request)
+	}
+	return nil
 }
 
 func stripRedirectCredentials(request *http.Request) {

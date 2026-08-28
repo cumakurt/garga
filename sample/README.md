@@ -22,6 +22,6 @@ fixtures (`garga-sensitive-test`, 49 synthetic documents). The demo index is bui
 to exercise every detector family (cloud keys, developer tokens, private keys,
 connection strings, hashes, nested objects, and more).
 
-Console, JSON, JSONL, table, SARIF, and PDF all use the same canonical masked
+Table, JSON, JSONL, SARIF, and PDF all use the same canonical masked
 findings. Treat reports as confidential because index names, document IDs, field
 paths, and cluster metadata may still be sensitive.

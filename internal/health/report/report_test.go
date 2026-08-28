@@ -34,6 +34,9 @@ func TestWriteFormatsAndRedactsSensitiveEvidence(t *testing.T) {
 			if format == FormatHTML && strings.Contains(strings.ToLower(text), "<script") {
 				t.Fatalf("HTML contains a script: %s", text)
 			}
+			if format == FormatHTML && !strings.Contains(text, `class="score MEDIUM"`) {
+				t.Fatalf("HTML score tone for Degraded is not MEDIUM: %s", text)
+			}
 			if format == FormatMarkdown && (!strings.Contains(text, "Prioritized Action Plan") || !strings.Contains(text, "Probable Root Causes") || !strings.Contains(text, "Methodology") || !strings.Contains(text, "| Collector |")) {
 				t.Fatalf("markdown report is missing coverage sections: %s", text)
 			}
@@ -196,6 +199,41 @@ func mustWorkingDirectory(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return directory
+}
+
+func TestHealthToneMatchesCanonicalLabels(t *testing.T) {
+	t.Parallel()
+	cases := map[string]string{
+		"Perfect":      "OK",
+		"Healthy":      "OK",
+		"Minor Issues": "LOW",
+		"Degraded":     "MEDIUM",
+		"High Risk":    "HIGH",
+		"Critical":     "CRITICAL",
+		"unknown":      "INFO",
+	}
+	for label, want := range cases {
+		if got := healthTone(label); got != want {
+			t.Fatalf("healthTone(%q) = %q, want %q", label, got, want)
+		}
+	}
+}
+
+func TestWriteRedactsMetricsResourceNames(t *testing.T) {
+	t.Parallel()
+	report := fixtureReport()
+	report.Metrics.TopNodesByDisk = []healthmodel.ResourceUsage{{Resource: "Bearer metric-canary", Value: 91, Unit: "percent"}}
+	report.Summary.HighestDiskUsage = healthmodel.ResourceUsage{Resource: "Bearer metric-canary", Value: 91, Unit: "percent"}
+	formats := []Format{FormatTerminal, FormatJSON, FormatHTML, FormatMarkdown}
+	for _, format := range formats {
+		var output bytes.Buffer
+		if err := Write(&output, format, report); err != nil {
+			t.Fatalf("Write(%s) error = %v", format, err)
+		}
+		if strings.Contains(output.String(), "metric-canary") {
+			t.Fatalf("%s leaked metrics resource name:\n%s", format, output.String())
+		}
+	}
 }
 
 func fixtureReport() healthmodel.Report {

@@ -120,6 +120,13 @@ func activateBaseline(temporaryPath, destination string, overwrite bool) error {
 		}
 		return os.Remove(temporaryPath)
 	}
+	if info, err := os.Lstat(destination); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			return fmt.Errorf("destination must be a regular non-symlink file")
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
 	if err := os.Rename(temporaryPath, destination); err == nil {
 		return nil
 	} else if _, statErr := os.Stat(destination); statErr != nil {

@@ -1,12 +1,14 @@
 package secrets
 
 import (
+	"context"
 	"sort"
 	"strconv"
 	"strings"
 )
 
 type walkLimits struct {
+	ctx               context.Context
 	maxDepth          int
 	maxArrayItems     int
 	maxObjectSize     int
@@ -38,8 +40,12 @@ func walkDocumentStats(source any, limits walkLimits) walkResult {
 	return *result
 }
 
+func walkCancelled(limits walkLimits) bool {
+	return limits.ctx != nil && limits.ctx.Err() != nil
+}
+
 func walkValue(value any, path string, depth int, limits walkLimits, result *walkResult) {
-	if result == nil || depth > limits.maxDepth || hitLimitReached(result, limits) {
+	if result == nil || depth > limits.maxDepth || hitLimitReached(result, limits) || walkCancelled(limits) {
 		return
 	}
 	switch typed := value.(type) {
@@ -75,7 +81,7 @@ func walkObject(object map[string]any, path string, depth int, limits walkLimits
 	keys := selectWalkKeys(object, limits.maxObjectSize)
 	fields := make([]scopedField, 0, len(keys))
 	for _, key := range keys {
-		if hitLimitReached(result, limits) {
+		if hitLimitReached(result, limits) || walkCancelled(limits) {
 			break
 		}
 		child := object[key]
@@ -179,14 +185,17 @@ func joinPath(parent, child string) string {
 func mappingFields(mapping any, prefix string, depth int, limits walkLimits) []FieldSemantics {
 	var fields []FieldSemantics
 	object, ok := mapping.(map[string]any)
-	if !ok || depth > limits.maxDepth {
+	if !ok || depth > limits.maxDepth || walkCancelled(limits) {
 		return fields
 	}
 	if properties, ok := object["properties"].(map[string]any); ok {
-		return mappingFields(properties, prefix, depth, limits)
+		return mappingFields(properties, prefix, depth+1, limits)
 	}
 	count := 0
 	for _, name := range sortedMapKeys(object) {
+		if walkCancelled(limits) {
+			break
+		}
 		if count >= limits.maxObjectSize {
 			break
 		}

@@ -1,6 +1,7 @@
 package secrets
 
 import (
+	"context"
 	"fmt"
 	"testing"
 )
@@ -124,5 +125,37 @@ func TestWalkDocumentBoundsRetainedHits(t *testing.T) {
 	})
 	if len(hits) != 3 {
 		t.Fatalf("retained hits = %d, want hard limit 3", len(hits))
+	}
+}
+
+func TestMappingFieldsCapsNestedPropertiesWrappers(t *testing.T) {
+	t.Parallel()
+	current := any(map[string]any{"password": map[string]any{"type": "keyword"}})
+	for index := 0; index < 64; index++ {
+		current = map[string]any{"properties": current}
+	}
+	fields := mappingFields(current, "", 0, walkLimits{maxDepth: 8, maxObjectSize: 32})
+	if len(fields) != 0 {
+		t.Fatalf("deep properties wrappers leaked %d fields", len(fields))
+	}
+	shallow := mappingFields(map[string]any{"properties": map[string]any{"password": map[string]any{"type": "keyword"}}}, "", 0, walkLimits{maxDepth: 8, maxObjectSize: 32})
+	if len(shallow) != 1 || shallow[0].Path != "password" {
+		t.Fatalf("standard mapping fields = %+v", shallow)
+	}
+}
+
+func TestWalkStopsOnCanceledContext(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	source := map[string]any{}
+	for index := 0; index < 256; index++ {
+		source[fmt.Sprintf("password_%03d", index)] = "fake-password-garga-test-ONLY"
+	}
+	hits := walkDocument(source, walkLimits{
+		ctx: ctx, maxDepth: 8, maxArrayItems: 64, maxObjectSize: 10000, maxFieldBytes: 1024,
+	})
+	if len(hits) != 0 {
+		t.Fatalf("canceled walk produced %d hits", len(hits))
 	}
 }

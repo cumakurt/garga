@@ -72,6 +72,7 @@ Elasticsearch 8.19.20 containers:
 - `127.0.0.1:19201` — security disabled (anonymous `fingerprint`, `scan`, `vuln`)
 - `127.0.0.1:19200` — security enabled (credentials, `health`, `assess`, `secrets`)
 
-It captures terminal screenshots under `docs/screenshots/` and copies example PDFs to
+It captures the README screenshot gallery under `docs/screenshots/` (commands that produce a
+readable assessment result) and copies example PDFs to
 `sample/`. Set `GARGA_DEMO_PASSWORD` to the secured container `elastic` password before
 running it. The script redacts that password from logs and screenshots.

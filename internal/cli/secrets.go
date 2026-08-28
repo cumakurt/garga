@@ -24,7 +24,7 @@ sampled documents. The command is read-only: it never creates, updates, or
 deletes indices, documents, or cluster settings.
 
 Use only against clusters you own or are explicitly authorized to assess.
-Console, JSON, JSONL, table, SARIF, and the timestamped PDF artifact all render
+Table, JSON, JSONL, SARIF, and the timestamped PDF artifact all render
 the same canonical masked findings. Raw discovered values are discarded before
 the report model is created.
 

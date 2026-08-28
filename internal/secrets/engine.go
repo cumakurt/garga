@@ -423,6 +423,7 @@ func (engine *Engine) expandCatalogIndices(concrete []string, aliases map[string
 
 func (engine *Engine) scanIndex(ctx context.Context, client *esClient, targetURL, cluster, index string, budget *int) ([]Finding, int, walkStats, bool, error) {
 	limits := engine.options.walkLimits()
+	limits.ctx = ctx
 	var mapping map[string]any
 	mappingPath := "/" + url.PathEscape(index) + "/_mapping"
 	if err := client.getJSON(ctx, mappingPath, nil, &mapping); err != nil {
@@ -466,6 +467,9 @@ func (engine *Engine) scanIndex(ctx context.Context, client *esClient, targetURL
 		}
 		walked := walkDocumentStats(documents[docIndex].Source, limits)
 		documents[docIndex].Source = nil
+		if ctx.Err() != nil {
+			break
+		}
 		stats.fields += walked.stats.fields
 		stats.bytes += walked.stats.bytes
 		processed++
@@ -544,18 +548,22 @@ func (engine *Engine) sampleDocuments(ctx context.Context, client *esClient, ind
 		if response.Shards.Failed > 0 {
 			return documents, fmt.Errorf("search response reported %d failed shards", response.Shards.Failed)
 		}
-		if len(response.Hits.Hits) == 0 {
+		hits := response.Hits.Hits
+		if len(hits) > size {
+			hits = hits[:size]
+		}
+		if len(hits) == 0 {
 			break
 		}
-		for _, hit := range response.Hits.Hits {
+		for _, hit := range hits {
 			documents = append(documents, sampledDocument{ID: hit.ID, Source: hit.Source, sort: hit.Sort})
 		}
-		last := response.Hits.Hits[len(response.Hits.Hits)-1]
+		last := hits[len(hits)-1]
 		sortAfter = last.Sort
 		if len(sortAfter) == 0 {
 			break
 		}
-		if len(response.Hits.Hits) < size {
+		if len(hits) < size {
 			break
 		}
 	}

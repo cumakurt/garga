@@ -15,6 +15,9 @@ func TestParseConfidenceAndFormat(t *testing.T) {
 	if _, err := ParseFormat("csv"); err == nil {
 		t.Fatal("csv must not be a secrets format")
 	}
+	if _, err := ParseFormat("console"); err == nil {
+		t.Fatal("console must not be a secrets format")
+	}
 }
 
 func TestOptionsRejectMultipleAuthMechanisms(t *testing.T) {

@@ -712,3 +712,48 @@ func searchFixture() map[string]any {
 	}
 	return map[string]any{"hits": map[string]any{"hits": []any{hit}}}
 }
+
+func TestSampleDocumentsCapsOversizedSearchHits(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch {
+		case request.Method == http.MethodGet && request.URL.Path == "/":
+			writeJSON(writer, map[string]any{"cluster_name": "oversize", "version": map[string]any{"number": "8.19.0"}})
+		case request.Method == http.MethodGet && request.URL.Path == "/_security/_authenticate":
+			writer.WriteHeader(http.StatusNotFound)
+		case request.Method == http.MethodGet && request.URL.Path == "/_cat/indices":
+			writeJSON(writer, []map[string]string{{"index": "app-logs", "status": "open"}})
+		case request.Method == http.MethodGet && (request.URL.Path == "/_alias" || request.URL.Path == "/_data_stream"):
+			writeJSON(writer, map[string]any{})
+		case request.Method == http.MethodGet && request.URL.Path == "/app-logs/_mapping":
+			writeJSON(writer, mappingFixture())
+		case request.Method == http.MethodPost && request.URL.Path == "/app-logs/_search":
+			hits := make([]any, 0, 50)
+			for index := 0; index < 50; index++ {
+				hits = append(hits, map[string]any{
+					"_id":     fmt.Sprintf("%d", index),
+					"_source": map[string]any{"password": "fake-password-garga-test-ONLY"},
+					"sort":    []any{index},
+				})
+			}
+			writeJSON(writer, map[string]any{"hits": map[string]any{"hits": hits}})
+		default:
+			writer.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+	engine, err := NewEngine(Options{
+		RateLimit: 100, Concurrency: 1, SampleSize: 2, MaxDocuments: 2,
+		Timeout: time.Minute, AllowPlaintextAuth: true, SearchBatch: 2,
+	}, nil, "garga/test", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := engine.Scan(context.Background(), []string{server.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Summary.DocumentsExamined != 2 {
+		t.Fatalf("documents examined = %d, want sample cap 2 (malicious search returned 50 hits)", result.Summary.DocumentsExamined)
+	}
+}

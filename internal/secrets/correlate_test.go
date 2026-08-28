@@ -248,3 +248,12 @@ func assertPair(t *testing.T, hits []hit, credentialType, category string, relat
 	}
 	t.Fatalf("missing %s pair related=%v hits=%v", credentialType, related, hitSummary(hits))
 }
+
+func TestParseAssignmentFieldsCapsLineCount(t *testing.T) {
+	t.Parallel()
+	value := strings.Repeat("password=fake-password-ONLY\n", 20000)
+	fields := parseAssignmentFields(value, "message")
+	if len(fields) != maxAssignmentFields {
+		t.Fatalf("assignment fields = %d, want cap %d", len(fields), maxAssignmentFields)
+	}
+}

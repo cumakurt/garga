@@ -9,8 +9,25 @@ All notable changes to garga are documented in this file.
 First public release. CLI flags, configuration keys, and streaming finding schema `1.0` are the
 compatibility baseline for this tag.
 
+### Changed
+
+- README screenshot gallery keeps only captures with a readable assessment result
+  (`fingerprint`, `scan`, `auth-check`, `auth-audit`, `auth-detect`, `health`, `secrets`).
+  Empty or one-line captures (`vuln` with no findings, `--help`, `version`, unsigned
+  `update`, fixture generate, truncated JSON/CSV) are no longer published.
+- README screenshots and `sample/` PDF reports are regenerated from Elasticsearch 8.19.20
+  Docker demos after the scanner and reporting fixes in this tag.
+
 ### Fixed
 
+- Secrets generate no longer follows cross-origin redirects, so Authorization and PUT
+  bodies cannot leak to another host. Search sampling now truncates oversized `_search`
+  hit arrays to the requested size. Mapping walks count `properties` wrappers toward
+  `maxDepth`. Document walks honor cancellation. Assignment-style correlation caps the
+  number of parsed lines.
+- Health HTML score colors match the canonical health labels (`High Risk`, `Perfect`,
+  `Minor Issues`). Report writers redact metrics resource names. Baseline overwrite
+  refuses to replace a symbolic link.
 - Secrets console, JSON, and PDF reports now share the same canonical summary counters,
   including partial failures. Table and PDF category labels match the summary. SARIF keeps
   canonical severity on each result. Wide documents keep sensitive fields when object-size
