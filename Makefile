@@ -16,7 +16,8 @@ RELEASE_FLAGS += -commit $(RELEASE_COMMIT)
 endif
 
 GOLANGCI_LINT_VERSION ?= v2.13.1
-GOVULNCHECK_VERSION ?= v1.1.4
+# v1.1.4 panics under Go 1.27 (CI uses 1.27.x). v1.7.0 is the current x/vuln release.
+GOVULNCHECK_VERSION ?= v1.7.0
 PREFIX ?= /usr/local
 DESTDIR ?=
 INSTALL_BINDIR = $(DESTDIR)$(PREFIX)/bin
@@ -94,4 +95,4 @@ signatures-validate:
 # against the compiling toolchain; use Go 1.26.6+ or 1.27.0+ so patched standard
 # library issues are not reported as product findings.
 vulncheck:
-	$(GO) run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
+	$(GO) run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) -- ./...

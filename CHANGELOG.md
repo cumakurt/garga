@@ -12,6 +12,7 @@ All notable changes to garga are documented in this file.
   or pre-1.21 compilers download the official `go.dev` archive with SHA-256 verification.
   GNU Make is not required. Git is optional when GOPROXY can serve modules. Linux package
   manager coverage includes `microdnf`, `tdnf`, `xbps-install`, and `eopkg`.
+- `make vulncheck` pins `govulncheck` v1.7.0. v1.1.4 panics on Go 1.27, which CI uses.
 
 ## [0.1.0] - 2026-08-28
 
