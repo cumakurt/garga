@@ -17,14 +17,24 @@ func writePDF(output io.Writer, report healthmodel.Report) error {
 	if !report.Metadata.ScanTimestamp.IsZero() {
 		generated = report.Metadata.ScanTimestamp.UTC()
 	}
+	title := "Elasticsearch Health Check and Assessment"
+	classification := "Confidential - Authorized Health Assessment"
+	producer := "garga GET-only health assessment"
+	subtitle := "Evidence-based evaluation of cluster health, capacity, performance, reliability, configuration, and security. No state-changing Elasticsearch operation was performed."
+	if report.Metadata.AssessmentMode {
+		title = "Elasticsearch Security and Health Assessment"
+		classification = "Confidential - Authorized Security Assessment"
+		producer = "garga authenticated-capable GET-only assessment"
+		subtitle = "Context-aware evaluation of Elasticsearch vulnerabilities, runtime consistency, configuration, health, and resilience. No exploit or state-changing operation was performed."
+	}
 	doc := pdfdoc.New(
-		"Elasticsearch Health Check and Assessment",
-		"Confidential - Authorized Health Assessment",
-		"garga GET-only health assessment",
+		title,
+		classification,
+		producer,
 	)
 	doc.Logo(garga.LogoPNG())
-	doc.Title("Elasticsearch Health Check and Assessment")
-	doc.Subtitle("Evidence-based evaluation of cluster health, capacity, performance, reliability, configuration, and security. No state-changing Elasticsearch operation was performed.")
+	doc.Title(title)
+	doc.Subtitle(subtitle)
 	doc.Para(fmt.Sprintf("Generated %s  |  scanner %s  |  profile %s  |  deep %t", generated.Format("2006-01-02 15:04:05 MST"), firstNonEmpty(report.Metadata.ScannerVersion, "garga"), report.Metadata.HealthProfile, report.Metadata.DeepScanEnabled))
 	doc.KV("Cluster", report.Cluster.Name)
 	doc.KV("Elasticsearch", report.Cluster.Version.Number)
@@ -38,6 +48,7 @@ func writePDF(output io.Writer, report healthmodel.Report) error {
 		report.Summary.SeverityCounts[healthmodel.SeverityLow],
 		report.Summary.SeverityCounts[healthmodel.SeverityInfo],
 	))
+	doc.PageBreak()
 
 	doc.Section("Top risks")
 	if len(report.Summary.TopRisks) == 0 {
@@ -66,6 +77,7 @@ func writePDF(output io.Writer, report healthmodel.Report) error {
 	}
 	for index, finding := range report.Findings {
 		resource := strings.TrimSpace(finding.ResourceType + "/" + finding.Resource)
+		flags, vulnerabilityFields := healthPDFVulnerabilityDetails(finding)
 		fields := [][]string{
 			{"Category", finding.Category},
 			{"Resource", resource},
@@ -75,10 +87,11 @@ func writePDF(output io.Writer, report healthmodel.Report) error {
 			{"Operational impact", finding.Impact},
 			{"Recommended action", finding.Recommendation},
 		}
-		if len(finding.Evidence) > 0 {
+		fields = append(fields, vulnerabilityFields...)
+		if len(finding.Evidence) > 0 && len(vulnerabilityFields) == 0 {
 			fields = append(fields, []string{"Evidence", evidenceText(finding.Evidence)})
 		}
-		doc.FindingCard(index+1, finding.ID, string(finding.Severity), finding.Title, nil, compactHealthPDFFields(fields))
+		doc.FindingCard(index+1, finding.ID, string(finding.Severity), finding.Title, flags, compactHealthPDFFields(fields))
 	}
 
 	if len(report.Correlations) > 0 {
@@ -128,6 +141,77 @@ func writePDF(output io.Writer, report healthmodel.Report) error {
 	return doc.Write(output)
 }
 
+func healthPDFVulnerabilityDetails(finding healthmodel.Finding) ([]string, [][]string) {
+	if finding.Category != "Vulnerability" {
+		return nil, nil
+	}
+	flags := make([]string, 0, 2)
+	applicability, _ := finding.Evidence["applicability"].(string)
+	if applicability != "" {
+		flags = append(flags, strings.ToUpper(applicability))
+	}
+	knownExploited, _ := finding.Evidence["known_exploited"].(bool)
+	if knownExploited {
+		flags = append(flags, "CISA KEV")
+	}
+	fields := [][]string{
+		{"CVE", stringSliceText(finding.Evidence["cve"])},
+		{"CVSS", numberText(finding.Evidence["cvss"], 1)},
+		{"EPSS probability", percentText(finding.Evidence["epss"])},
+		{"EPSS percentile", percentText(finding.Evidence["epss_percentile"])},
+		{"Priority score", scoreText(finding.Evidence["priority_score"])},
+		{"Applicability", applicability},
+		{"Known exploited", boolRiskText(knownExploited)},
+		{"Threat data updated", stringValue(finding.Evidence["threat_updated"])},
+		{"Evidence codes", stringSliceText(finding.Evidence["evidence_codes"])},
+	}
+	return flags, fields
+}
+
+func stringSliceText(value any) string {
+	values, ok := value.([]string)
+	if !ok {
+		return ""
+	}
+	return strings.Join(values, ", ")
+}
+
+func numberText(value any, precision int) string {
+	number, ok := value.(float64)
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf("%.*f", precision, number)
+}
+
+func percentText(value any) string {
+	number, ok := value.(float64)
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf("%.3f%%", number*100)
+}
+
+func scoreText(value any) string {
+	text := numberText(value, 2)
+	if text == "" {
+		return ""
+	}
+	return text + " / 10"
+}
+
+func boolRiskText(value bool) string {
+	if value {
+		return "Yes - CISA Known Exploited Vulnerabilities catalog"
+	}
+	return "No"
+}
+
+func stringValue(value any) string {
+	text, _ := value.(string)
+	return text
+}
+
 func writeUsageTable(doc *pdfdoc.Doc, title string, values []healthmodel.ResourceUsage) {
 	if len(values) == 0 {
 		return
@@ -174,8 +258,12 @@ func WriteTimestampedPDF(report healthmodel.Report) (path string, err error) {
 	if timestamp.IsZero() {
 		timestamp = time.Now()
 	}
-	prefix := ".garga-health-" + timestamp.UTC().Format("20060102T150405.000Z") + "-"
-	return pdfdoc.WriteCWD(prefix, ".pdf", "health PDF", func(output io.Writer) error {
+	kind := "health"
+	if report.Metadata.AssessmentMode {
+		kind = "assessment"
+	}
+	prefix := ".garga-" + kind + "-" + timestamp.UTC().Format("20060102T150405.000Z") + "-"
+	return pdfdoc.WriteCWD(prefix, ".pdf", kind+" PDF", func(output io.Writer) error {
 		return writePDF(output, report)
 	})
 }

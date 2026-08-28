@@ -124,8 +124,16 @@ func TestProduceWritesArchivesChecksumsAndSBOM(t *testing.T) {
 	if document.SPDXVersion != "SPDX-2.3" {
 		t.Fatalf("spdxVersion = %q", document.SPDXVersion)
 	}
+	if len(document.Relationships) != 1 || document.Relationships[0] != (spdxRelationship{
+		ElementID: "SPDXRef-DOCUMENT", Type: "DESCRIBES", RelatedElement: "SPDXRef-Package-0",
+	}) {
+		t.Fatalf("document relationship = %#v", document.Relationships)
+	}
 	var sawCobra, sawMain bool
 	for _, pkg := range document.Packages {
+		if pkg.FilesAnalyzed {
+			t.Fatalf("package %q unexpectedly claims file analysis", pkg.Name)
+		}
 		if pkg.Name == "github.com/spf13/cobra" {
 			sawCobra = true
 		}

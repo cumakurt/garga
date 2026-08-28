@@ -15,8 +15,8 @@ func TestDefaultRegistryCount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if registry.Count() != 37 {
-		t.Fatalf("registry count = %d, want 37", registry.Count())
+	if registry.Count() != 38 {
+		t.Fatalf("registry count = %d, want 38", registry.Count())
 	}
 }
 

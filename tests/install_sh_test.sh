@@ -26,17 +26,18 @@ assert_unsupported() {
 	fi
 }
 
-assert_supported "go1.26.0" "1.26.0"
-assert_supported "go1.26.5" "1.26.0"
-assert_supported "go1.27.0" "1.26.0"
-assert_supported "go2.0.0" "1.26.0"
-assert_supported "go1.27rc1" "1.26.0"
+assert_supported "go1.26.6" "1.26.6"
+assert_supported "go1.26.9" "1.26.6"
+assert_supported "go1.27.0" "1.26.6"
+assert_supported "go2.0.0" "1.26.6"
+assert_supported "go1.27rc1" "1.26.6"
 
-assert_unsupported "go1.25.9" "1.26.0"
-assert_unsupported "go1.26rc1" "1.26.0"
-assert_unsupported "go1.26beta2" "1.26.0"
-assert_unsupported "devel go1.27" "1.26.0"
-assert_unsupported "unknown" "1.26.0"
+assert_unsupported "go1.25.9" "1.26.6"
+assert_unsupported "go1.26.5" "1.26.6"
+assert_unsupported "go1.26rc1" "1.26.6"
+assert_unsupported "go1.26beta2" "1.26.6"
+assert_unsupported "devel go1.27" "1.26.6"
+assert_unsupported "unknown" "1.26.6"
 
 FORCE_REBUILD=0
 SHOW_HELP=0

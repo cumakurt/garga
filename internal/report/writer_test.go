@@ -74,6 +74,11 @@ func TestParseFormat(t *testing.T) {
 	if format != FormatJSONL {
 		t.Fatalf("ParseFormat() = %q, want %q", format, FormatJSONL)
 	}
+	for _, value := range []string{"sarif", "vex"} {
+		if _, err := ParseFormat(value); err != nil {
+			t.Errorf("ParseFormat(%s) error = %v", value, err)
+		}
+	}
 	if _, err := ParseFormat("xml"); err == nil {
 		t.Fatal("ParseFormat(xml) error = nil, want error")
 	}
@@ -237,7 +242,7 @@ func TestDeterministicFormatsAreStable(t *testing.T) {
 	t.Parallel()
 
 	findings := sampleFindings()
-	for _, format := range []Format{FormatConsole, FormatJSON, FormatJSONL, FormatCSV, FormatHTML} {
+	for _, format := range []Format{FormatConsole, FormatJSON, FormatJSONL, FormatCSV, FormatHTML, FormatSARIF, FormatVEX} {
 		first := renderFormat(t, format, findings)
 		second := renderFormat(t, format, findings)
 		if !bytes.Equal(first, second) {

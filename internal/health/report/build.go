@@ -17,6 +17,7 @@ type BuildOptions struct {
 	Deep           bool
 	Duration       time.Duration
 	TopN           int
+	AssessmentMode bool
 }
 
 func Build(snapshot *healthmodel.ClusterSnapshot, findings []healthmodel.Finding, checks []healthmodel.CheckResult, options BuildOptions) healthmodel.Report {
@@ -38,6 +39,7 @@ func Build(snapshot *healthmodel.ClusterSnapshot, findings []healthmodel.Finding
 			ElasticsearchVersion: snapshot.Cluster.Version.Number, HealthProfile: string(options.Profile), DeepScanEnabled: options.Deep,
 			Collectors: append([]healthmodel.CollectorResult(nil), snapshot.Collection.Collectors...), APIRequests: snapshot.Collection.Requests,
 			BytesDownloaded: snapshot.Collection.Bytes, FailedRequests: snapshot.Collection.Failed, RetriedRequests: snapshot.Collection.Retried,
+			AssessmentMode: options.AssessmentMode,
 		},
 	}
 	report.Summary = healthmodel.Summary{

@@ -40,24 +40,30 @@ type Evidence struct {
 
 // Finding is one deterministic, evidence-backed assessment result.
 type Finding struct {
-	SchemaVersion string     `json:"schema_version"`
-	ID            string     `json:"id"`
-	CheckID       string     `json:"check_id"`
-	Title         string     `json:"title"`
-	Description   string     `json:"description,omitempty"`
-	Target        Endpoint   `json:"target"`
-	Product       string     `json:"product"`
-	Version       string     `json:"version,omitempty"`
-	Severity      Severity   `json:"severity"`
-	Confidence    Confidence `json:"confidence"`
-	CVSS          *float64   `json:"cvss,omitempty"`
-	CVE           []string   `json:"cve,omitempty"`
-	Evidence      []Evidence `json:"evidence,omitempty"`
-	Remediation   string     `json:"remediation,omitempty"`
-	References    []string   `json:"references,omitempty"`
-	FirstSeen     *time.Time `json:"first_seen,omitempty"`
-	Tags          []string   `json:"tags,omitempty"`
-	Resource      string     `json:"resource,omitempty"`
+	SchemaVersion  string     `json:"schema_version"`
+	ID             string     `json:"id"`
+	CheckID        string     `json:"check_id"`
+	Title          string     `json:"title"`
+	Description    string     `json:"description,omitempty"`
+	Target         Endpoint   `json:"target"`
+	Product        string     `json:"product"`
+	Version        string     `json:"version,omitempty"`
+	Severity       Severity   `json:"severity"`
+	Confidence     Confidence `json:"confidence"`
+	CVSS           *float64   `json:"cvss,omitempty"`
+	EPSS           *float64   `json:"epss,omitempty"`
+	EPSSPercentile *float64   `json:"epss_percentile,omitempty"`
+	PriorityScore  *float64   `json:"priority_score,omitempty"`
+	KnownExploited bool       `json:"known_exploited,omitempty"`
+	ThreatUpdated  *time.Time `json:"threat_updated,omitempty"`
+	Applicability  string     `json:"applicability,omitempty"`
+	CVE            []string   `json:"cve,omitempty"`
+	Evidence       []Evidence `json:"evidence,omitempty"`
+	Remediation    string     `json:"remediation,omitempty"`
+	References     []string   `json:"references,omitempty"`
+	FirstSeen      *time.Time `json:"first_seen,omitempty"`
+	Tags           []string   `json:"tags,omitempty"`
+	Resource       string     `json:"resource,omitempty"`
 }
 
 // FindingID returns a stable identity for one check, endpoint, and resource.
@@ -161,6 +167,22 @@ func cloneFinding(finding Finding) Finding {
 	if finding.CVSS != nil {
 		value := *finding.CVSS
 		cloned.CVSS = &value
+	}
+	if finding.EPSS != nil {
+		value := *finding.EPSS
+		cloned.EPSS = &value
+	}
+	if finding.EPSSPercentile != nil {
+		value := *finding.EPSSPercentile
+		cloned.EPSSPercentile = &value
+	}
+	if finding.PriorityScore != nil {
+		value := *finding.PriorityScore
+		cloned.PriorityScore = &value
+	}
+	if finding.ThreatUpdated != nil {
+		value := *finding.ThreatUpdated
+		cloned.ThreatUpdated = &value
 	}
 	if finding.FirstSeen != nil {
 		value := *finding.FirstSeen

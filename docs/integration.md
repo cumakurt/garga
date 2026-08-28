@@ -19,7 +19,7 @@ The first run pulls images from `docker.elastic.co`.
 Narrow a run:
 
 ```sh
-GARGA_INTEGRATION=1 GARGA_INTEGRATION_VERSION=9.4.4 go test -count=1 -timeout 20m ./internal/integration
+GARGA_INTEGRATION=1 GARGA_INTEGRATION_VERSION=9.5.2 go test -count=1 -timeout 20m ./internal/integration
 GARGA_INTEGRATION=1 GARGA_INTEGRATION_FILTER=anon/http go test -count=1 -timeout 20m ./internal/integration
 ```
 
@@ -32,9 +32,9 @@ Pinned to the fixture versions in [ADR 0005](adr/0005-elasticsearch-version-supp
 
 | Version | Tier | Anonymous HTTP | Authenticated HTTP | Authenticated HTTPS |
 |---|---|---|---|---|
-| 8.19.19 | Fully supported | yes | yes | yes |
-| 9.3.8 | Fully supported | yes | yes | yes |
-| 9.4.4 | Fully supported | yes | yes | yes |
+| 8.19.20 | Fully supported | yes | yes | yes |
+| 9.4.5 | Fully supported | yes | yes | yes |
+| 9.5.2 | Fully supported | yes | yes | yes |
 | 7.17.23 | Legacy detection | smoke | — | — |
 
 Anonymous HTTPS is omitted: it is not a realistic Elasticsearch operator profile. TLS on/off and
@@ -47,7 +47,9 @@ HTTPS lanes mount test-generated PEM material and trust that CA. Images disable 
 Tests never send `PUT`, `POST`, `DELETE`, or `PATCH`. Credential and security probes use
 `GET /_security/_authenticate` (the Elasticsearch Authenticate API, not Get User). Auth lanes
 are not ready on HTTP 401; they wait until the `elastic` credential is accepted and cluster
-health is yellow or green.
+health is green, including the `.security` primary shard. Every lane also runs the deep contextual assessment engine with the
+bundled corpus, verifies all 39 checks/evaluators are registered, confirms node runtime inventory,
+and checks that serialized reports contain no credential material.
 
 ## Failures
 
@@ -58,6 +60,6 @@ with `[redacted]`. Response bodies and cluster identifiers are not dumped.
 ## Isolation
 
 `internal/integration` may import transport, probe, fingerprint, capability, checks, credential,
-config, model, and target. It must not import Cobra, `internal/cli`, `internal/app`, the scanner,
+health, config, model, and target. It must not import Cobra, `internal/cli`, `internal/app`, the scanner,
 reporters, or the signature updater. Live matrix tests exercise packages directly rather than
 spawning `garga scan`.

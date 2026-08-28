@@ -9,6 +9,7 @@ import (
 
 	"github.com/cumakurt/garga/internal/config"
 	healthmodel "github.com/cumakurt/garga/internal/health/model"
+	"github.com/cumakurt/garga/internal/vulnerability"
 )
 
 // Checker evaluates normalized state and never performs Elasticsearch I/O.
@@ -25,9 +26,9 @@ type Registry struct {
 	checks []Checker
 }
 
-func DefaultRegistry(cfg config.HealthConfig) (*Registry, error) {
+func DefaultRegistry(cfg config.HealthConfig, signatures ...vulnerability.Signature) (*Registry, error) {
 	checks := []Checker{
-		clusterStatus(), pendingTasks(cfg), singleNode(cfg.Profile), roleDistribution(cfg.Profile),
+		clusterStatus(), pendingTasks(cfg), singleNode(cfg.Profile), roleDistribution(cfg.Profile), nodeRuntimeDrift(),
 		jvmHeap(cfg.Thresholds.JVM), garbageCollection(), cpuHealth(cfg.Thresholds.CPU),
 		swapUsage(), physicalMemory(cfg.Thresholds.Memory), fileDescriptors(cfg.Thresholds.FileDescriptors),
 		diskHealth(cfg.Thresholds.Disk), diskImbalance(variationForProfile(cfg.Thresholds.DiskImbalance, cfg.Profile)), diskCapacityForecast(cfg.Thresholds.Disk),
@@ -39,6 +40,9 @@ func DefaultRegistry(cfg config.HealthConfig) (*Registry, error) {
 		performance(), mergeAndRefreshPressure(cfg.Profile), segments(cfg.Profile), ilmHealth(), dataStreamHealth(), longTasks(cfg.Thresholds.LongTaskWarning),
 		snapshotHealth(cfg.Thresholds.BackupWarning, cfg.Thresholds.BackupHigh), allocationSettings(),
 		securityHealth(cfg.Profile), certificateHealth(cfg.Thresholds.Certificate),
+	}
+	if len(signatures) > 0 {
+		checks = append(checks, vulnerabilitySignatures(signatures))
 	}
 	return NewRegistry(checks...)
 }

@@ -30,6 +30,8 @@ const (
 	OutputJSONL   OutputFormat = "jsonl"
 	OutputCSV     OutputFormat = "csv"
 	OutputHTML    OutputFormat = "html"
+	OutputSARIF   OutputFormat = "sarif"
+	OutputVEX     OutputFormat = "vex"
 )
 
 // LogLevel controls application logging verbosity.
@@ -216,7 +218,7 @@ func Defaults() Config {
 func (cfg Config) String() string {
 	outputFormat := cfg.Output.Format
 	switch outputFormat {
-	case OutputConsole, OutputJSON, OutputJSONL, OutputCSV, OutputHTML:
+	case OutputConsole, OutputJSON, OutputJSONL, OutputCSV, OutputHTML, OutputSARIF, OutputVEX:
 	default:
 		outputFormat = "<invalid>"
 	}

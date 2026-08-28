@@ -96,6 +96,12 @@ type scanHTMLFinding struct {
 	ExploitableNote string
 	CVE             string
 	CVSS            string
+	EPSS            string
+	EPSSPercentile  string
+	PriorityScore   string
+	Applicability   string
+	ThreatUpdated   string
+	KnownExploited  bool
 	Tags            string
 	Description     string
 	Cause           string
@@ -222,6 +228,22 @@ func scanFindingView(finding model.Finding) scanHTMLFinding {
 	if finding.CVSS != nil {
 		cvss = fmt.Sprintf("%.1f", *finding.CVSS)
 	}
+	epss := ""
+	if finding.EPSS != nil {
+		epss = fmt.Sprintf("%.3f%%", *finding.EPSS*100)
+	}
+	epssPercentile := ""
+	if finding.EPSSPercentile != nil {
+		epssPercentile = fmt.Sprintf("%.3f%%", *finding.EPSSPercentile*100)
+	}
+	priorityScore := ""
+	if finding.PriorityScore != nil {
+		priorityScore = fmt.Sprintf("%.2f / 10", *finding.PriorityScore)
+	}
+	threatUpdated := ""
+	if finding.ThreatUpdated != nil {
+		threatUpdated = finding.ThreatUpdated.UTC().Format("2006-01-02")
+	}
 	return scanHTMLFinding{
 		ID:              finding.ID,
 		CheckID:         finding.CheckID,
@@ -238,6 +260,12 @@ func scanFindingView(finding model.Finding) scanHTMLFinding {
 		ExploitableNote: exploitableNote(finding),
 		CVE:             strings.Join(finding.CVE, ", "),
 		CVSS:            cvss,
+		EPSS:            epss,
+		EPSSPercentile:  epssPercentile,
+		PriorityScore:   priorityScore,
+		Applicability:   finding.Applicability,
+		ThreatUpdated:   threatUpdated,
+		KnownExploited:  finding.KnownExploited,
 		Tags:            strings.Join(finding.Tags, ", "),
 		Description:     finding.Description,
 		Cause:           narrative.Cause,
@@ -591,7 +619,7 @@ const scanHTMLSource = `<!doctype html>
 
 <section class="section" id="risks">
   <div class="section-head"><h2>8. Key findings for management</h2><span class="section-note">Exploitable-class first, then severity</span></div>
-  {{if .TopRisks}}<div class="grid grid-3">{{range .TopRisks}}<article class="card risk {{.SeverityClass}}">{{if .Exploitable}}<span class="badge EXPLOITABLE">EXPLOITABLE</span> {{end}}<span class="badge {{.SeverityClass}}">{{.SeverityClass}}</span> <span class="finding-id">{{.ReportID}}</span><h3>{{.Title}}</h3><div class="resource">{{.Target}}{{if .CVE}} · {{.CVE}}{{end}}</div><p>{{.Impact}}</p>{{if .EvidenceCards}}<div class="evidence-strip">{{range .EvidenceCards}}<div><span class="evidence-code">{{.Code}}</span> — {{.Summary}}</div>{{end}}</div>{{end}}</article>{{end}}</div>{{else}}<div class="card empty success">No scored security findings were emitted for the endpoints that were probed.</div>{{end}}
+  {{if .TopRisks}}<div class="grid grid-3">{{range .TopRisks}}<article class="card risk {{.SeverityClass}}">{{if .Exploitable}}<span class="badge EXPLOITABLE">EXPLOITABLE</span> {{end}}{{if .KnownExploited}}<span class="badge EXPLOITABLE">CISA KEV</span> {{end}}{{if .Applicability}}<span class="badge">{{.Applicability}}</span> {{end}}<span class="badge {{.SeverityClass}}">{{.SeverityClass}}</span> <span class="finding-id">{{.ReportID}}</span><h3>{{.Title}}</h3><div class="resource">{{.Target}}{{if .CVE}} · {{.CVE}}{{end}}</div><p>{{.Impact}}</p>{{if .EvidenceCards}}<div class="evidence-strip">{{range .EvidenceCards}}<div><span class="evidence-code">{{.Code}}</span> — {{.Summary}}</div>{{end}}</div>{{end}}</article>{{end}}</div>{{else}}<div class="card empty success">No scored security findings were emitted for the endpoints that were probed.</div>{{end}}
 </section>
 
 <section class="section" id="findings">
@@ -599,7 +627,7 @@ const scanHTMLSource = `<!doctype html>
   {{if .FindingGroups}}{{range .FindingGroups}}
   <div class="group-banner {{.Class}}">{{.Class}} · {{.Count}} finding(s)</div>
   <div class="grid">{{range .Findings}}<article class="card finding {{.SeverityClass}}" id="{{.ReportID}}">
-    <div class="finding-head"><div class="finding-title">{{if .Exploitable}}<span class="badge EXPLOITABLE">EXPLOITABLE</span>{{end}}<span class="badge {{.SeverityClass}}">{{.SeverityClass}}</span><span class="finding-id">{{.ReportID}}</span><span class="finding-id">{{.CheckID}}</span><strong>{{.Title}}</strong></div><div class="resource">{{.Category}}{{if .Resource}} · {{.Resource}}{{end}} · {{.Target}}</div></div>
+    <div class="finding-head"><div class="finding-title">{{if .Exploitable}}<span class="badge EXPLOITABLE">EXPLOITABLE</span>{{end}}{{if .KnownExploited}}<span class="badge EXPLOITABLE">CISA KEV</span>{{end}}{{if .Applicability}}<span class="badge">{{.Applicability}}</span>{{end}}<span class="badge {{.SeverityClass}}">{{.SeverityClass}}</span><span class="finding-id">{{.ReportID}}</span><span class="finding-id">{{.CheckID}}</span><strong>{{.Title}}</strong></div><div class="resource">{{.Category}}{{if .Resource}} · {{.Resource}}{{end}} · {{.Target}}</div></div>
     <div class="finding-body">
       <table class="finding-meta"><tbody>
         <tr><th>Status</th><td>{{.Status}}</td></tr>
@@ -608,6 +636,10 @@ const scanHTMLSource = `<!doctype html>
         <tr><th>Likelihood</th><td>{{.Likelihood}}</td></tr>
         <tr><th>Confidence</th><td>{{if .Confidence}}{{.Confidence}}{{else}}—{{end}}</td></tr>
         <tr><th>CVSS</th><td>{{if .CVSS}}{{.CVSS}}{{else}}—{{end}}{{if .CVE}} · {{.CVE}}{{end}}</td></tr>
+        {{if .EPSS}}<tr><th>EPSS</th><td>{{.EPSS}} probability · {{.EPSSPercentile}} percentile</td></tr>{{end}}
+        {{if .PriorityScore}}<tr><th>Priority score</th><td>{{.PriorityScore}}</td></tr>{{end}}
+        {{if .Applicability}}<tr><th>Applicability</th><td>{{.Applicability}}</td></tr>{{end}}
+        {{if .CVE}}<tr><th>Known exploited</th><td>{{if .KnownExploited}}Yes · CISA KEV{{else}}No{{end}}{{if .ThreatUpdated}} · updated {{.ThreatUpdated}}{{end}}</td></tr>{{end}}
         <tr><th>OWASP</th><td>{{.OWASP}}</td></tr>
         <tr><th>CWE</th><td>{{.CWE}}</td></tr>
       </tbody></table>

@@ -63,6 +63,18 @@ func TestConfigStringIsDeterministicAndSecretSafe(t *testing.T) {
 	}
 }
 
+func TestConfigStringIncludesInteroperableOutputFormats(t *testing.T) {
+	t.Parallel()
+
+	for _, format := range []OutputFormat{OutputSARIF, OutputVEX} {
+		cfg := Defaults()
+		cfg.Output.Format = format
+		if got := cfg.String(); !strings.Contains(got, "output.format="+string(format)) {
+			t.Fatalf("Config.String() = %q, want format %q", got, format)
+		}
+	}
+}
+
 func TestValidateRejectsInvalidValues(t *testing.T) {
 	t.Parallel()
 

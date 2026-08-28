@@ -37,7 +37,11 @@ func writeTerminal(output io.Writer, report healthmodel.Report) error {
 
 func renderTerminal(report healthmodel.Report, color bool) string {
 	var text strings.Builder
-	text.WriteString(paint(color, ansiBold+ansiCyan, "Elasticsearch Health Check"))
+	title := "Elasticsearch Health Check"
+	if report.Metadata.AssessmentMode {
+		title = "Elasticsearch Security and Health Assessment"
+	}
+	text.WriteString(paint(color, ansiBold+ansiCyan, title))
 	text.WriteByte('\n')
 	text.WriteString(paint(color, ansiGray, ruleLine))
 	text.WriteByte('\n')

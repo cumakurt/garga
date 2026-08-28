@@ -1,7 +1,7 @@
 # ADR 0005: Elasticsearch version support matrix
 
 - Status: Accepted
-- Date: 2026-08-26
+- Date: 2026-08-27
 
 ## Context
 
@@ -11,8 +11,8 @@ behavior. Supporting only the newest release would make an assessment tool ineff
 identifying obsolete deployments.
 
 Elastic's version policy maintains the newest two minor releases of the current major and the
-final minor of the previous major. As of this decision, the current release lines are 9.4.x and
-9.3.x, while 8.19.x is the final previous-major line. Elasticsearch 7.17 reached end of support
+final minor of the previous major. As of this decision, the current release lines are 9.5.x and
+9.4.x, while 8.19.x is the final previous-major line. Elasticsearch 7.17 reached end of support
 on 2026-01-15.
 
 Sources:
@@ -27,12 +27,12 @@ v1 has two compatibility tiers:
 
 | Tier | Version lines | Contract |
 |---|---|---|
-| Fully supported | 8.19.x, 9.3.x, 9.4.x | Fingerprint, capability, check, credential, vulnerability, and container integration coverage |
-| Legacy detection | 7.17.x, 8.0–8.18, 9.0–9.2 | Fingerprint, version extraction, end-of-support reporting, and passive signature matching; API/check availability is capability-driven and not guaranteed |
+| Fully supported | 8.19.x, 9.4.x, 9.5.x | Fingerprint, capability, check, credential, vulnerability, and container integration coverage |
+| Legacy detection | 7.17.x, 8.0–8.18, 9.0–9.3 | Fingerprint, version extraction, end-of-support reporting, and passive signature matching; API/check availability is capability-driven and not guaranteed |
 
-Representative pinned fixtures cover 7.17.23, 8.0.0, 8.19.19, 9.0.0, 9.3.8, and 9.4.4.
-Container release gates cover the newest available patch in each fully supported line and one
-7.17.23 legacy smoke lane. Exact current-line patch pins are reviewed before every release.
+Sanitized fixtures retain representative 7.17, 8.x, and 9.x response shapes. Container release
+gates pin the security-updated 8.19.20 and 9.4.5 releases, the current 9.5.2 release, plus one 7.17.23 legacy smoke
+lane. Exact current-line patch pins are reviewed before every release.
 
 Elasticsearch versions before 7.17 are unsupported. They may produce a `possible` fingerprint,
 but garga does not claim complete version, capability, check, or vulnerability behavior for them.

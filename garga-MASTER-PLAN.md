@@ -4,9 +4,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 3.7 |
+| Version | 3.8 |
 | Status | Active |
-| Last updated | 2026-08-27 |
+| Last updated | 2026-08-28 |
 | Product | Elasticsearch security assessment CLI |
 | Implementation language | Go |
 | Primary audience | Maintainers, reviewers, security engineers, and coding agents |
@@ -37,7 +37,9 @@ authorized target set and obtain reproducible findings without garga changing re
 - Explicit single-credential verification with secret-safe input and output handling.
 - Isolated, explicit, rate- and attempt-limited credential audit mode.
 - Signature-driven vulnerability matching and safe signature updates.
-- Console, JSON, JSONL, CSV, and standalone HTML reports.
+- Console, JSON, JSONL, CSV, standalone HTML, SARIF 2.1.0, and CycloneDX 1.6 VEX reports.
+- Runtime-aware authenticated assessment, lifecycle comparison, signed evidence bundles, and
+  capacity forecasting from compatible baselines.
 - Versioned output schemas, stable check identifiers, and deterministic ordering.
 
 ### 1.2 Non-goals for v1
@@ -92,13 +94,17 @@ pull-request `govulncheck`. Work Package 12.2 made the shared HTTP transport rej
 methods and request bodies. Work Package 12.3 made the Elasticsearch GET path catalog the single
 source for Authenticate and extra probes. Work Package 12.4 added `make signatures-validate` for
 committed YAML fixtures. Work Package 13.1 added `garga health`, a GET-only cluster assessment
-engine with centralized collection, 37 checkers, and an independent health-report schema.
+engine with centralized collection, 38 checkers, and an independent health-report schema.
+Work Packages 14.1 through 14.9 added the approved production-readiness expansion: explicit
+authenticated assessment, runtime inventory, threat intelligence, interoperable formats,
+lifecycle comparison, evidence integrity, advisory automation, capacity forecasting, and
+operator-grade PDF output.
 
 ### 3.1 Decisions in force
 
 | Decision | Rationale |
 |---|---|
-| Minimum Go version is 1.26 | It is one of the two supported Go release lines as of this revision. CI also tests Go 1.27. |
+| Minimum Go version is 1.26.6 | It contains required standard-library security fixes. CI also tests Go 1.27. |
 | Cobra is the only bootstrap runtime dependency | Stable subcommand and flag behavior is central to the product; other dependencies require separate justification. |
 | The canonical module is `github.com/cumakurt/garga` | Public imports and release metadata require one stable repository identity. |
 | The project license is `AGPL-3.0-only` | Reciprocal source availability applies to redistribution and modified network-accessible deployments. |
@@ -113,7 +119,7 @@ engine with centralized collection, 37 checkers, and an independent health-repor
 |---|---|---|---|
 | D-001 | Canonical VCS/module path | Resolved | `github.com/cumakurt/garga`; ADR 0004 |
 | D-002 | Open-source or proprietary license | Resolved | `AGPL-3.0-only`; ADR 0004 |
-| D-003 | Supported Elasticsearch version matrix | Resolved | Current 8.19.x/9.3.x/9.4.x plus legacy detection; ADR 0005 |
+| D-003 | Supported Elasticsearch version matrix | Resolved | Current 8.19.x/9.4.x/9.5.x plus legacy detection; ADR 0005 |
 | D-004 | Signature trust root and signing mechanism | Resolved | Embedded Ed25519 public key; ADR 0014 |
 | D-005 | Default scan rate and concurrency | Resolved | 20 workers, 50 global req/s, 5 per-host req/s; ADR 0001 |
 
@@ -145,6 +151,10 @@ internal/cli ---> internal/logging
 internal/cli ---> internal/health ---> internal/transport
                                  ---> internal/credential
                                  ---> internal/config
+                                 ---> internal/vulnerability
+internal/cli ---> internal/lifecycle
+             ---> internal/evidence ---> internal/signing
+             ---> internal/forecast
 internal/scanner ---> internal/logging
 
 internal/model is a leaf package and performs no I/O.
@@ -159,7 +169,7 @@ Dependency rules:
 - Transport code owns network limits, redirect policy, and connection reuse.
 - Check implementations own security semantics; the scanner only orchestrates them.
 - `internal/credential` is used by explicit `auth-check` verification and optional `garga health`
-  authentication, not by scanner orchestration.
+  or `garga assess` authentication, not by scanner orchestration.
 - `internal/credential/audit` is used only by explicit `auth-audit` and has no call path from scan.
 - `internal/vulnerability` loads signatures, matches versions, and converts potential findings.
   It does not confirm exploits from version evidence.
@@ -274,11 +284,15 @@ garga
 ├── scan
 ├── fingerprint
 ├── health
+├── assess
 ├── auth-check
 ├── auth-audit
 ├── vuln
 ├── update
 ├── report
+├── diff
+├── evidence
+├── forecast
 └── version
 ```
 
@@ -292,15 +306,15 @@ Planned exit codes:
 | 0 | Success, regardless of whether findings exist |
 | 1 | Unexpected internal or operational failure |
 | 2 | Invalid CLI, configuration, or target input |
-| 3 | Scan completed with partial operational failures |
+| 3 | Scan completed with partial operational failures, or a diff failure threshold was reached |
 | 4 | Signature update or validation failure |
-| 5 | `garga health` collection, connection, authentication, product, or timeout failure |
-| 10 | `garga health --fail-on`: highest finding is medium/warning |
-| 11 | `garga health --fail-on`: highest finding is high |
-| 12 | `garga health --fail-on`: highest finding is critical |
+| 5 | `garga health` or `garga assess` collection, connection, authentication, product, or timeout failure |
+| 10 | `garga health` or `garga assess --fail-on`: highest finding is medium/warning |
+| 11 | `garga health` or `garga assess --fail-on`: highest finding is high |
+| 12 | `garga health` or `garga assess --fail-on`: highest finding is critical |
 | 130 | Interrupted by the user |
 
-`garga health --fail-on` uses 10/11/12 after a completed assessment. Invalid health flags and
+`garga health` and `garga assess --fail-on` use 10/11/12 after a completed assessment. Invalid flags and
 configuration use 2, matching other commands. Collection failures use 5 so they cannot be
 confused with signature-update failures (4).
 
@@ -780,7 +794,7 @@ boundaries and acceptance tests are already stable.
 **Deliverables**
 
 - Public `garga health TARGET` command for one Elasticsearch cluster.
-- Centralized GET-only collector, version-tolerant snapshot, 37 I/O-free checkers, scoring,
+- Centralized GET-only collector, version-tolerant snapshot, 38 I/O-free checkers, scoring,
   correlation, and terminal/JSON/HTML/Markdown reports with a timestamped HTML artifact.
 - Optional authentication via stdin or `ESHEALTH_*`, refused over HTTP unless
   `--allow-plaintext-auth` is set and reported as critical.
@@ -793,6 +807,114 @@ boundaries and acceptance tests are already stable.
 - Credentials never appear in reports, logs, or baseline files.
 - `--fail-on` uses dedicated codes 10/11/12; collection failures use 5; invalid input uses 2.
 - `make check` and `make test-race` pass.
+
+#### [x] WP 14.1: Explicit contextual security assessment
+
+**Deliverables**
+
+- Public `garga assess TARGET` command built on the bounded health collector.
+- Optional single credential, deep collection by default, bundled or explicit signature corpus.
+- Potential/applicable distinction without exploit probes or state-changing requests.
+
+**Acceptance criteria**
+
+- Credential rules, redaction, timeouts, limits, and GET-only enforcement match `garga health`.
+- Missing inventory does not become negative evidence; known unmet prerequisites suppress a match.
+
+#### [x] WP 14.2: Runtime and component inventory
+
+**Deliverables**
+
+- Normalized Elasticsearch node version, JDK, module/plugin, realm, and safe-setting context.
+- Cross-node version, JDK, and component-drift findings.
+
+**Acceptance criteria**
+
+- Sensitive setting names are filtered and inventory availability is explicit.
+- Checkers consume normalized data and perform no network I/O.
+
+#### [x] WP 14.3: Threat-aware prioritization
+
+**Deliverables**
+
+- Signature schema fields for CISA KEV, FIRST EPSS/percentile, and threat-data date.
+- Bounded priority score and explicit threat fields in finding and assessment reports.
+
+**Acceptance criteria**
+
+- Invalid scores and dates are rejected; threat metadata remains part of signed corpus data.
+- KEV and applicability never claim successful exploitation.
+
+#### [x] WP 14.4: Interoperable security formats
+
+**Deliverables**
+
+- Deterministic SARIF 2.1.0 and CycloneDX 1.6 VEX reporters.
+- Format support in `scan`, `vuln`, `report`, configuration, and documentation.
+
+**Acceptance criteria**
+
+- Stable rule/result/component identity, valid applicability mapping, and 100,000-finding bound.
+- Empty and representative artifacts pass schema-oriented regression tests.
+
+#### [x] WP 14.5: Finding lifecycle comparison
+
+**Deliverables**
+
+- Offline `garga diff` with new/resolved/unchanged/regressed/improved states.
+- Console, JSON, JSONL, and `--fail-on` automation behavior.
+
+**Acceptance criteria**
+
+- Stable IDs, duplicate rejection, deterministic ordering, bounded input, and exit code 3.
+
+#### [x] WP 14.6: Tamper-evident evidence bundles
+
+**Deliverables**
+
+- `garga evidence pack|verify` with SHA-256 manifests and optional Ed25519 signatures.
+- Deterministic ZIP metadata and strict entry, path, size, digest, and signature validation.
+
+**Acceptance criteria**
+
+- Existing output, symlinks, traversal, duplicates, undeclared entries, and tampering are rejected.
+- Private signing keys require owner-only permissions.
+
+#### [x] WP 14.7: Advisory audit and signed-corpus publishing
+
+**Deliverables**
+
+- Bounded official Elastic, CVE Services, CISA KEV, and FIRST EPSS synchronization.
+- Reviewable candidate generation, non-overwriting corpus enrichment, and deterministic publisher.
+
+**Acceptance criteria**
+
+- Ambiguous structured version data is blocked for review instead of guessed.
+- Published artifacts install through the existing signature update verifier and staging path.
+
+#### [x] WP 14.8: Multi-snapshot capacity forecast
+
+**Deliverables**
+
+- Offline `garga forecast` over 2-64 compatible health baselines.
+- Regression fit, confidence, and 85/90/95 percent disk-threshold projections.
+
+**Acceptance criteria**
+
+- Cluster, timestamp, counter, observation-window, and capacity-drift validation is enforced.
+- Stable/shrinking series and weak data do not produce false precision.
+
+#### [x] WP 14.9: Operator-grade PDF output
+
+**Deliverables**
+
+- PDF cover title `Test Report`, strengthened layout, evidence hierarchy, runtime applicability,
+  and threat-priority presentation for scan and assessment artifacts.
+
+**Acceptance criteria**
+
+- Reports are owner-only, visually inspected on representative multi-page artifacts, and contain
+  no clipped/overlapping text or missing finding content.
 
 ## 8. Testing strategy
 
@@ -824,7 +946,7 @@ Pull-request CI runs:
 
 1. formatting check;
 2. `go vet ./...`;
-3. `go test ./...` on Go 1.26 and Go 1.27;
+3. `go test ./...` on Go 1.26.6+ and Go 1.27;
 4. `go test -race ./...` on the primary CI version;
 5. `go build ./...`;
 6. `make signatures-validate` against committed YAML fixtures;
@@ -920,8 +1042,8 @@ Risk entries are reviewed when a work package changes probability, impact, or mi
 
 1. Adding an Elasticsearch product GET still requires a catalog entry in `internal/capability`
    and an active-safe test. Do not duplicate Authenticate as Get User.
-2. The planned CLI tree is implemented, including `garga health`. Do not add authenticated scan
-   or extra product commands until a later, explicit work package defines them.
+2. Keep authenticated assessment in the explicit single-target `garga assess` and `garga health`
+   boundary. Do not add credentials to multi-target scanner orchestration.
 
 The implementation cadence is always:
 

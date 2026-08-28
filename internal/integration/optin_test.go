@@ -1,8 +1,13 @@
 package integration
 
 import (
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -32,15 +37,15 @@ func TestMatrixPinsMatchSupportPolicy(t *testing.T) {
 		tls     bool
 		legacy  bool
 	}{
-		{"8.19.19", false, false, false},
-		{"8.19.19", true, false, false},
-		{"8.19.19", true, true, false},
-		{"9.3.8", false, false, false},
-		{"9.3.8", true, false, false},
-		{"9.3.8", true, true, false},
-		{"9.4.4", false, false, false},
-		{"9.4.4", true, false, false},
-		{"9.4.4", true, true, false},
+		{"8.19.20", false, false, false},
+		{"8.19.20", true, false, false},
+		{"8.19.20", true, true, false},
+		{"9.4.5", false, false, false},
+		{"9.4.5", true, false, false},
+		{"9.4.5", true, true, false},
+		{"9.5.2", false, false, false},
+		{"9.5.2", true, false, false},
+		{"9.5.2", true, true, false},
 		{"7.17.23", false, false, true},
 	}
 	lanes := matrixLanes()
@@ -114,15 +119,65 @@ func TestParseResetPassword(t *testing.T) {
 	}
 }
 
-func TestClusterStatusReady(t *testing.T) {
+func TestClusterStatusGreen(t *testing.T) {
 	t.Parallel()
-	if !clusterStatusReady([]byte(`{"cluster_name":"docker-cluster","status":"yellow"}`)) {
-		t.Fatal("yellow cluster should be ready")
+	if !clusterStatusGreen([]byte(`{"status":"green","timed_out":false}`)) {
+		t.Fatal("green cluster should satisfy authenticated readiness")
 	}
-	if !clusterStatusReady([]byte(`{"status":"green","timed_out":false}`)) {
-		t.Fatal("green cluster should be ready")
+	if clusterStatusGreen([]byte(`{"status":"yellow"}`)) {
+		t.Fatal("yellow cluster should not satisfy authenticated readiness")
 	}
-	if clusterStatusReady([]byte(`{"status":"red"}`)) {
-		t.Fatal("red cluster should not be ready")
+}
+
+func TestAuthenticatedReadinessRequiresSecurityIndex(t *testing.T) {
+	t.Parallel()
+
+	var securityReady atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		username, password, ok := request.BasicAuth()
+		if !ok || username != elasticUsername || password != "test-password" {
+			writer.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		switch request.URL.Path {
+		case "/_security/_authenticate":
+			if !securityReady.Load() {
+				writer.WriteHeader(http.StatusServiceUnavailable)
+				return
+			}
+			_, _ = writer.Write([]byte(`{"username":"elastic"}`))
+		case "/":
+			_, _ = writer.Write([]byte(`{"version":{"number":"8.19.20"}}`))
+		case "/_cluster/health":
+			_, _ = writer.Write([]byte(`{"status":"green"}`))
+		default:
+			http.NotFound(writer, request)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	host, rawPort, err := net.SplitHostPort(strings.TrimPrefix(server.URL, "http://"))
+	if err != nil {
+		t.Fatalf("parse test server address: %v", err)
+	}
+	port, err := strconv.Atoi(rawPort)
+	if err != nil {
+		t.Fatalf("parse test server port: %v", err)
+	}
+	cluster := &esCluster{
+		Lane:     newLane("8.19.20", true, false, false),
+		Port:     port,
+		Password: "test-password",
+	}
+	if host != cluster.endpointHost() {
+		t.Fatalf("test server host = %q, want %q", host, cluster.endpointHost())
+	}
+
+	if err := probeReady(cluster); err == nil || err.Error() != "security authentication status 503" {
+		t.Fatalf("probeReady() before security index = %v", err)
+	}
+	securityReady.Store(true)
+	if err := probeReady(cluster); err != nil {
+		t.Fatalf("probeReady() after security index: %v", err)
 	}
 }

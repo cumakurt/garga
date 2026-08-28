@@ -35,7 +35,7 @@ and keeps TLS/exposure checks. Scan does not fetch or activate signed update bun
 3. When the identity is likely or confirmed, discover GET-only capabilities.
 4. Evaluate the check registry and bundled (or `--signatures`) CVE matches into `model.Finding` values.
 5. Stream findings to the selected reporter. Console and HTML emphasize exploitable findings.
-   CSV, JSON, JSONL, and HTML also print a human detection summary on stderr. The complete
+   CSV, JSON, JSONL, HTML, SARIF, and VEX also print a human detection summary on stderr. The complete
    scan is not retained in machine writers. Independently of `--format`, a detailed timestamped
    PDF artifact (`garga-scan-*.pdf`) is written to the current directory when the scan has
    submitted probes or produced findings. `--html-report` also writes the HTML artifact.
@@ -49,7 +49,7 @@ instantaneous rate may briefly exceed the scanner-only budget.
 
 ## Output and exit codes
 
-`--format` selects `console`, `json`, `jsonl`, `csv`, or `html`. When omitted, `output.format`
+`--format` selects `console`, `json`, `jsonl`, `csv`, `html`, `sarif`, or `vex`. When omitted, `output.format`
 from configuration applies. Machine formats use finding schema `0.1`. Logs stay on stderr.
 
 On a terminal, `garga scan` draws a live progress bar on stderr while probes are in flight
@@ -58,7 +58,7 @@ hosts or URLs. It stays hidden for a fast single-target run. `--no-progress` dis
 Piped stderr (CI, files) does not show the bar. Findings remain on stdout.
 
 Every completed scan also writes `garga-scan-<timestamp>-<id>.pdf` in the working directory
-(mode `0600`) and prints the absolute path on stderr. The artifact is a penetration-test report
+(mode `0600`) and prints the absolute path on stderr. The artifact is titled `Test Report` and is
 structured to PTES, NIST SP 800-115, OWASP, and CREST: document control, disclaimer, executive
 summary, engagement overview, in/out of scope, rules of engagement, methodology, risk rating,
 summary and technical findings (grouped by severity, with OWASP/CWE, evidence, and residual

@@ -13,7 +13,7 @@ type matrixLane struct {
 }
 
 func matrixLanes() []matrixLane {
-	fullySupported := []string{"8.19.19", "9.3.8", "9.4.4"}
+	fullySupported := []string{"8.19.20", "9.4.5", "9.5.2"}
 	lanes := make([]matrixLane, 0, len(fullySupported)*3+1)
 	for _, version := range fullySupported {
 		lanes = append(lanes,

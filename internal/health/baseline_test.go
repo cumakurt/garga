@@ -1,8 +1,10 @@
 package health
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -55,5 +57,33 @@ func TestLoadBaselineRejectsUnknownFields(t *testing.T) {
 	}
 	if _, err := LoadBaseline(path); err == nil {
 		t.Fatal("LoadBaseline() accepted an unknown field")
+	}
+}
+
+func TestLoadBaselineBoundedRejectsSymlinkAndBudgetOverflow(t *testing.T) {
+	t.Parallel()
+
+	directory := t.TempDir()
+	path := filepath.Join(directory, "baseline.json")
+	baseline := healthmodel.Baseline{
+		SchemaVersion: healthmodel.BaselineSchemaVersion,
+		Timestamp:     time.Date(2026, 8, 28, 1, 0, 0, 0, time.UTC),
+		ClusterUUID:   "fixture",
+	}
+	payload, err := json.Marshal(baseline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, payload, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := LoadBaselineBounded(path, int64(len(payload)-1)); err == nil || !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("LoadBaselineBounded(over budget) error = %v", err)
+	}
+	link := filepath.Join(directory, "baseline-link.json")
+	if err := os.Symlink(path, link); err == nil {
+		if _, _, err := LoadBaselineBounded(link, maxBaselineBytes); err == nil || !strings.Contains(err.Error(), "non-symlink") {
+			t.Fatalf("LoadBaselineBounded(symlink) error = %v", err)
+		}
 	}
 }

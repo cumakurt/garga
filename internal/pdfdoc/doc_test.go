@@ -39,8 +39,9 @@ func TestSafeNormalizesLatinText(t *testing.T) {
 }
 
 func TestTableWrapsFindingRegisterWithoutOverflow(t *testing.T) {
-	headers := []string{"ID", "Sev", "Title", "Asset", "CVSS", "Status"}
+	headers := []string{"#", "ID", "Severity", "Title", "Asset", "CVSS", "Status"}
 	row := []string{
+		"1",
 		"F-001",
 		"CRITICAL",
 		"Elasticsearch likely allows unauthenticated cluster administration",
@@ -73,9 +74,22 @@ func TestTableWrapsFindingRegisterWithoutOverflow(t *testing.T) {
 			}
 		}
 	}
-	if len(measure.wrap(row[2], widths[2]-1.6)) < 2 {
+	if len(measure.wrap(row[3], widths[3]-1.6)) < 2 {
 		t.Fatal("expected the findings title to wrap onto more than one line")
 	}
+	statusLines := measure.wrap("Open / EXPLOITABLE", widths[6]-1.6)
+	if !containsLine(statusLines, "EXPLOITABLE") {
+		t.Fatalf("status label was split across characters: %#v", statusLines)
+	}
+}
+
+func containsLine(lines []string, expected string) bool {
+	for _, line := range lines {
+		if line == expected {
+			return true
+		}
+	}
+	return false
 }
 
 func TestFindingCardRendersNumberedFieldTable(t *testing.T) {
@@ -93,5 +107,23 @@ func TestFindingCardRendersNumberedFieldTable(t *testing.T) {
 		if !strings.Contains(body, needle) {
 			t.Fatalf("finding card missing %q", needle)
 		}
+	}
+}
+
+func TestFindingCardSplitsLongFieldAcrossPagesWithoutLosingContent(t *testing.T) {
+	const finalMarker = "END-OF-LONG-FINDING-EVIDENCE"
+	value := strings.Repeat("bounded evidence remains readable across page boundaries ", 450) + finalMarker
+	doc := New("test", "Confidential", "footer")
+	doc.FindingCard(1, "F-001", "HIGH", "Long evidence boundary", nil, [][]string{{"Evidence", value}})
+	var output bytes.Buffer
+	if err := doc.Write(&output); err != nil {
+		t.Fatal(err)
+	}
+	body := output.String()
+	if !strings.Contains(body, finalMarker) {
+		t.Fatal("long field lost its final content")
+	}
+	if pages := strings.Count(body, "/Type /Page\n"); pages < 2 {
+		t.Fatalf("PDF pages = %d, want at least 2", pages)
 	}
 }

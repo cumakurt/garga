@@ -1,3 +1,3 @@
-schema_version,id,check_id,title,severity,confidence,product,version,target,resource,cve,cvss,description,tags,evidence,remediation
-0.1,garga.tls.not_enabled|http://192.168.1.10:9200/|,garga.tls.not_enabled,Elasticsearch is reachable over HTTP,medium,high,elasticsearch,,http://192.168.1.10:9200/,,,,,,scheme-http,Serve Elasticsearch only over HTTPS.
-0.1,garga.exposure.anonymous_access|http://192.168.1.10:9200/|,garga.exposure.anonymous_access,</td><script>alert(1)</script>,high,medium,elasticsearch,,http://192.168.1.10:9200/,,,,,exposure,anonymous-metadata,'=cmd|'/c calc'!A0
+schema_version,id,check_id,title,severity,confidence,product,version,target,resource,cve,cvss,epss,epss_percentile,priority_score,known_exploited,applicability,threat_updated,description,tags,evidence,remediation
+0.1,garga.tls.not_enabled|http://192.168.1.10:9200/|,garga.tls.not_enabled,Elasticsearch is reachable over HTTP,medium,high,elasticsearch,,http://192.168.1.10:9200/,,,,,,,false,,,,,scheme-http,Serve Elasticsearch only over HTTPS.
+0.1,garga.exposure.anonymous_access|http://192.168.1.10:9200/|,garga.exposure.anonymous_access,</td><script>alert(1)</script>,high,medium,elasticsearch,,http://192.168.1.10:9200/,,,,,,,false,,,,exposure,anonymous-metadata,'=cmd|'/c calc'!A0

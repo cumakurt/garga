@@ -16,12 +16,14 @@ func parseNodes(infoBody, statsBody []byte) []healthmodel.Node {
 			continue
 		}
 		node := &healthmodel.Node{
-			ID: id, Name: stringValue(object["name"]), IP: stringValue(object["ip"]), Roles: stringSlice(object["roles"]),
+			ID: id, Name: stringValue(object["name"]), Version: stringValue(object["version"]), IP: stringValue(object["ip"]), Roles: stringSlice(object["roles"]),
 			ThreadPools: make(map[string]healthmodel.ThreadPool), Breakers: make(map[string]healthmodel.Breaker),
 		}
 		jvm := mapObject(object, "jvm")
 		node.JVM.Version = stringValue(jvm["version"])
+		node.JVM.Vendor = stringValue(jvm["vm_vendor"])
 		node.JVM.HeapMaxBytes = parseInt(mapValue(jvm, "mem", "heap_max_in_bytes"))
+		node.Components = parseNodeComponents(object)
 		os := mapObject(object, "os")
 		node.AvailableProcessors = int(parseInt(os["available_processors"]))
 		process := mapObject(object, "process")
@@ -69,7 +71,40 @@ func parseNodes(infoBody, statsBody []byte) []healthmodel.Node {
 			node.Breakers = nil
 		}
 		sort.Strings(node.Roles)
+		sort.Slice(node.Components, func(left, right int) bool {
+			if node.Components[left].Name != node.Components[right].Name {
+				return node.Components[left].Name < node.Components[right].Name
+			}
+			return node.Components[left].Type < node.Components[right].Type
+		})
 		result = append(result, *node)
+	}
+	return result
+}
+
+func parseNodeComponents(object map[string]any) []healthmodel.NodeComponent {
+	var result []healthmodel.NodeComponent
+	seen := make(map[string]struct{})
+	for _, field := range []struct {
+		name, kind string
+	}{{"modules", "module"}, {"plugins", "plugin"}} {
+		items, _ := object[field.name].([]any)
+		for _, raw := range items {
+			component, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			name := strings.ToLower(strings.TrimSpace(stringValue(component["name"])))
+			if name == "" || len(name) > 128 {
+				continue
+			}
+			key := field.kind + "\x00" + name
+			if _, exists := seen[key]; exists {
+				continue
+			}
+			seen[key] = struct{}{}
+			result = append(result, healthmodel.NodeComponent{Name: name, Version: strings.TrimSpace(stringValue(component["version"])), Type: field.kind})
+		}
 	}
 	return result
 }

@@ -23,9 +23,10 @@ Supported targets: Linux amd64/arm64, macOS amd64/arm64, Windows amd64. Builds u
 `CGO_ENABLED=0`, `-trimpath`, and `-buildvcs=false`. Set `SOURCE_DATE_EPOCH` for a reproducible
 timestamp.
 
-The SBOM lists Go modules from `go list -m -json all`. It is not a substitute for a license
-compliance audit. Transitive licenses are recorded as `NOASSERTION` unless they are the main
-AGPL-3.0-only module.
+The SBOM lists Go modules from `go list -m -json all`, marks packages as not file-analyzed, and
+uses an SPDX `DESCRIBES` relationship to identify the main application package. It is not a
+substitute for a license compliance audit. Transitive licenses are recorded as `NOASSERTION`
+unless they are the main AGPL-3.0-only module.
 
 ## Cut a release from a clean checkout
 

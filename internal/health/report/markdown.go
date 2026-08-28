@@ -11,7 +11,11 @@ import (
 
 func writeMarkdown(output io.Writer, report healthmodel.Report) error {
 	var text strings.Builder
-	text.WriteString("# Elasticsearch Health Check\n\n")
+	title := "Elasticsearch Health Check"
+	if report.Metadata.AssessmentMode {
+		title = "Elasticsearch Security and Health Assessment"
+	}
+	text.WriteString("# " + title + "\n\n")
 	_, _ = fmt.Fprintf(&text, "- Cluster: %s\n- Elasticsearch: %s\n- Overall health: **%d / 100 — %s**\n- Nodes: %d\n- Indices: %d\n- Shards: %d\n- Total data: %s\n- Profile: %s\n- Deep scan: %t\n",
 		markdown(report.Cluster.Name), markdown(report.Cluster.Version.Number), report.Summary.HealthScore, markdown(report.Summary.OverallHealth), report.Summary.Nodes, report.Summary.Indices, report.Summary.Shards, formatBytes(report.Summary.TotalDataBytes), markdown(report.Metadata.HealthProfile), report.Metadata.DeepScanEnabled)
 	text.WriteString("\n## Top Risks\n\n")

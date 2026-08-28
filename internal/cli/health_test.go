@@ -126,6 +126,107 @@ func TestHealthHtmlReportFlagWritesHTMLAlongsidePDF(t *testing.T) {
 	}
 }
 
+func TestAssessUsesAuthenticatedGETOnlyRuntimeAndWritesAssessmentArtifact(t *testing.T) {
+	reportDirectory := t.TempDir()
+	t.Chdir(reportDirectory)
+	signatureDirectory := t.TempDir()
+	signature := `schema_version: "0.1"
+id: garga.vuln.assess-fixture
+title: Authenticated assessment fixture
+severity: high
+cve: [CVE-2099-10002]
+product: elasticsearch
+affected: [">=8.19.0 <8.20.0"]
+detection: version
+remediation: Upgrade Elasticsearch.
+`
+	if err := os.WriteFile(filepath.Join(signatureDirectory, "fixture.yaml"), []byte(signature), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	requests := 0
+	server := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet || request.Body != nil && request.Body != http.NoBody {
+			t.Errorf("unsafe request: %s %s", request.Method, request.URL.Path)
+		}
+		username, password, ok := request.BasicAuth()
+		if !ok || username != "elastic" || password != "credential-canary" {
+			writer.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		mu.Lock()
+		requests++
+		mu.Unlock()
+		status, payload := healthCLIResponse(request.URL.Path)
+		if request.URL.Path == "/_security/_authenticate" {
+			status, payload = http.StatusOK, `{"username":"elastic","authentication_type":"realm"}`
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(status)
+		_, _ = io.WriteString(writer, payload)
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	exitCode := Execute(context.Background(), []string{"assess", server.URL, "--username", "elastic", "--password-stdin", "--insecure", "--format", "json", "--signatures", signatureDirectory, "--requests-per-second", "100"}, BuildInfo{Version: "test"}, strings.NewReader("credential-canary\n"), &stdout, &stderr)
+	if exitCode != ExitSuccess {
+		t.Fatalf("Execute() exit = %d, stderr = %q", exitCode, stderr.String())
+	}
+	var document struct {
+		Metadata struct {
+			AssessmentMode bool `json:"assessment_mode"`
+		} `json:"metadata"`
+		Findings []healthmodel.Finding `json:"findings"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &document); err != nil {
+		t.Fatalf("decode assessment: %v", err)
+	}
+	if !document.Metadata.AssessmentMode {
+		t.Fatal("assessment metadata was not enabled")
+	}
+	found := false
+	for _, finding := range document.Findings {
+		if finding.ID == "garga.vuln.assess-fixture" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("assessment vulnerability missing: %#v", document.Findings)
+	}
+	artifacts, err := filepath.Glob(filepath.Join(reportDirectory, "garga-assessment-*.pdf"))
+	if err != nil || len(artifacts) != 1 {
+		t.Fatalf("assessment artifacts = %v, error = %v", artifacts, err)
+	}
+	payload, err := os.ReadFile(artifacts[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(payload, []byte("Elasticsearch Security and Health Assessment")) || bytes.Contains(payload, []byte("credential-canary")) {
+		t.Fatal("assessment PDF title or redaction contract failed")
+	}
+	if !strings.Contains(stderr.String(), "PDF assessment report written to") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if requests == 0 {
+		t.Fatal("assessment made no authenticated requests")
+	}
+}
+
+func TestAssessHelpDocumentsExplicitSecurityBoundary(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	if exitCode := Execute(context.Background(), []string{"assess", "--help"}, BuildInfo{}, strings.NewReader(""), &stdout, &stderr); exitCode != ExitSuccess {
+		t.Fatalf("exit = %d, stderr = %q", exitCode, stderr.String())
+	}
+	for _, expected := range []string{"--signatures", "--password-stdin", "GET-only", "runtime-applicable", "No state-changing"} {
+		if !strings.Contains(stdout.String(), expected) {
+			t.Errorf("help missing %q", expected)
+		}
+	}
+}
+
 func TestHealthCommandRefusesCredentialOverHTTPAndRedactsIt(t *testing.T) {
 	t.Chdir(t.TempDir())
 	const canary = "credential-canary"
@@ -303,7 +404,7 @@ func healthCLIResponse(path string) (int, string) {
 		return http.StatusOK, `{"status":"green","number_of_nodes":3,"number_of_data_nodes":3,"active_shards_percent_as_number":100,"unassigned_shards":0}`
 	case "/_cluster/stats":
 		return http.StatusOK, `{"indices":{"count":0,"shards":{"total":0},"docs":{"count":0},"store":{"size_in_bytes":0}},"nodes":{"count":{"total":3,"data":3}}}`
-	case "/_nodes/_all/os,process,jvm":
+	case "/_nodes/_all/os,process,jvm,plugins":
 		return http.StatusOK, `{"nodes":{"node-1":{"name":"data-1","roles":["master","data_hot"]},"node-2":{"name":"data-2","roles":["master","data_hot"]},"node-3":{"name":"data-3","roles":["master","data_hot"]}}}`
 	case "/_nodes/stats/jvm,os,process,fs,thread_pool,breaker,indices,indexing_pressure":
 		return http.StatusOK, `{"nodes":{"node-1":{"name":"data-1","roles":["master","data_hot"],"fs":{"total":{"total_in_bytes":100,"available_in_bytes":50}}},"node-2":{"name":"data-2","roles":["master","data_hot"],"fs":{"total":{"total_in_bytes":100,"available_in_bytes":50}}},"node-3":{"name":"data-3","roles":["master","data_hot"],"fs":{"total":{"total_in_bytes":100,"available_in_bytes":50}}}}}`

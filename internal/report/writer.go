@@ -18,6 +18,8 @@ const (
 	FormatJSONL   Format = "jsonl"
 	FormatCSV     Format = "csv"
 	FormatHTML    Format = "html"
+	FormatSARIF   Format = "sarif"
+	FormatVEX     Format = "vex"
 )
 
 // Writer emits findings one at a time. Close completes the document.
@@ -44,6 +46,10 @@ func New(format Format, output io.Writer) (Writer, error) {
 		return newCSVWriter(output), nil
 	case FormatHTML:
 		return &htmlWriter{output: output}, nil
+	case FormatSARIF:
+		return &sarifWriter{output: output}, nil
+	case FormatVEX:
+		return &vexWriter{output: output}, nil
 	default:
 		return nil, fmt.Errorf("create report writer: format is not supported")
 	}
@@ -53,7 +59,7 @@ func New(format Format, output io.Writer) (Writer, error) {
 func ParseFormat(value string) (Format, error) {
 	format := Format(strings.ToLower(strings.TrimSpace(value)))
 	switch format {
-	case FormatConsole, FormatJSON, FormatJSONL, FormatCSV, FormatHTML:
+	case FormatConsole, FormatJSON, FormatJSONL, FormatCSV, FormatHTML, FormatSARIF, FormatVEX:
 		return format, nil
 	default:
 		return "", fmt.Errorf("parse report format: format is not supported")

@@ -11,6 +11,21 @@ garga health https://es-prod.example.com --profile production --deep --format ht
 garga health https://es-prod.example.com --format json --fail-on high
 ```
 
+`garga assess` uses the same collector and health analysis, enables deep collection by default,
+and adds the bundled vulnerability corpus with runtime-aware applicability:
+
+```sh
+garga assess https://es-prod.example.com
+printf '%s\n' "$ES_PASSWORD" | \
+  garga assess https://es-prod.example.com --username elastic --password-stdin
+```
+
+An authorized credential can expose node JDK, module/plugin, realm, and safe setting inventory.
+The evaluator distinguishes version-only `potential` findings from `applicable` findings whose
+known runtime prerequisites are present. It suppresses a signature only when a prerequisite was
+successfully inventoried and did not match; unavailable inventory never becomes negative proof.
+Neither state claims exploitation.
+
 ## Safety boundary
 
 Every Elasticsearch request is `GET` with no request body. Health never creates or deletes an
@@ -94,7 +109,7 @@ cause. Only the required product/version request is fatal.
 
 ## Analysis coverage
 
-The registry currently contains 37 independent checks covering:
+The registry currently contains 38 independent health checks covering:
 
 - cluster status, pending tasks, and single-node availability;
 - node role redundancy and disk capacity projection from a compatible baseline;
@@ -106,7 +121,13 @@ The registry currently contains 37 independent checks covering:
 - index health, replicas, deleted documents, empty/old indices, and index blocks;
 - search/indexing counters, merge/refresh pressure, cache/fielddata evictions, and segment density;
 - ILM, data streams, long tasks, snapshots, allocation settings, HTTP authentication, and TLS
-  certificate lifetime.
+  certificate lifetime;
+- cross-node Elasticsearch version, JVM, and installed module/plugin consistency.
+
+`garga assess` adds one corpus-backed evaluator that can emit multiple CVE findings. Those
+findings carry applicability evidence, CVSS, current EPSS and percentile, CISA KEV status,
+threat-data date, and a bounded priority score. PDF and HTML finding cards expose those values
+directly rather than burying them in raw evidence.
 
 Snapshot-only cumulative values are labeled as historical and are not treated as current rates.
 Delta findings use two snapshots and report the elapsed interval. Heuristic findings include a
@@ -197,6 +218,21 @@ cluster UUID matches and their timestamp precedes the current scan. They contain
 credentials or raw Elasticsearch payloads. Counter resets caused by a node restart are recognized
 instead of being reported as negative activity.
 
+Use 2-64 compatible baseline files for an offline capacity forecast. The command accepts at most
+64 MiB of baseline input in total:
+
+```sh
+garga forecast baseline-1.json baseline-2.json baseline-3.json
+garga forecast baseline-1.json baseline-2.json baseline-3.json --format json
+```
+
+Snapshots must have the same cluster UUID, unique timestamps spanning at least 10 minutes, valid
+disk counters, and no more than 5% aggregate capacity drift. Ordinary least squares estimates
+cluster-store growth and reports regression fit and low/medium/high confidence. Projections use
+current aggregate disk usage and show the 85%, 90%, and 95% threshold date, `already_exceeded`,
+`not_projected`, or `beyond_horizon`. Stable or shrinking data is never given a fabricated fill
+date.
+
 ## Reports and exit codes
 
 `--format` accepts `terminal`, `json`, `html`, and `markdown`. `terminal` (also accepted as
@@ -240,8 +276,8 @@ update failures and is not used by `garga health`.
 
 ## Deliberate limits
 
-Health does not predict an exact date when storage will fill from one sample. A future forecast
-requires at least two compatible time-separated capacity snapshots; current reports expose the
-measurements and delta foundation without inventing a growth rate. Cache hit ratios, historical
+Health does not predict an exact date when storage will fill from one sample. Forecasts require
+at least two compatible time-separated capacity snapshots and explicitly expose fit confidence;
+they are trend estimates, not capacity guarantees. Cache hit ratios, historical
 rejection counts, cumulative GC time, large shards, and CPU snapshots are explicitly described as
 workload-dependent rather than automatic incident proof.

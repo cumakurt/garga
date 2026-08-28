@@ -29,12 +29,18 @@ Application code lives under `internal/`; garga does not expose a library API in
   may attach the same secret type to GET collectors.
 - `internal/credential/audit` is the isolated opt-in credential audit engine and is not used by scan.
 - `internal/vulnerability` owns signature loading, version matching, and potential finding conversion.
-- `internal/update` fetches, verifies, stages, and atomically activates signed signature bundles.
+- `internal/advisory` audits official sources and prepares reviewable signature corpus updates.
+- `internal/update` fetches, verifies, stages, and atomically activates signed signature bundles;
+  its maintainer publishing API creates deterministic signed bundles.
 - `internal/logging` emits structured JSON logs with secret redaction and closed-enum labels.
-- `internal/report` streams findings to console, JSON, JSONL, CSV, and standalone HTML without depending on scanner implementations.
-- `internal/health` is the isolated read-only cluster assessment engine used only by `garga health`.
+- `internal/report` writes findings to console, JSON, JSONL, CSV, standalone HTML, SARIF, and VEX
+  without depending on scanner implementations. Whole-document formats have explicit finding limits.
+- `internal/health` is the isolated read-only cluster assessment engine used by `garga health` and
+  `garga assess`.
   Collectors own Elasticsearch I/O; checkers receive a normalized snapshot and perform no network
   requests. It does not import Cobra or `internal/app`.
+- `internal/lifecycle`, `internal/evidence`, and `internal/forecast` implement bounded offline
+  comparison, evidence integrity, and capacity projection workflows.
 - `internal/integration` holds opt-in Elasticsearch container tests. It is not imported by the CLI or scanner.
 - `scripts/release` builds distribution archives. It is not part of the CLI and must not import Cobra.
 - `scripts/validate-signatures` loads YAML fixtures through `internal/vulnerability`. It is not

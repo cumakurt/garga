@@ -6,6 +6,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cumakurt/garga/internal/model"
 )
@@ -23,6 +24,12 @@ var csvHeader = []string{
 	"resource",
 	"cve",
 	"cvss",
+	"epss",
+	"epss_percentile",
+	"priority_score",
+	"known_exploited",
+	"applicability",
+	"threat_updated",
 	"description",
 	"tags",
 	"evidence",
@@ -67,6 +74,12 @@ func (writer *csvWriter) Write(ctx context.Context, finding model.Finding) error
 		safeCSV(finding.Resource),
 		safeCSV(strings.Join(finding.CVE, " ")),
 		safeCSV(cvssCSV(finding.CVSS)),
+		safeCSV(cvssCSV(finding.EPSS)),
+		safeCSV(cvssCSV(finding.EPSSPercentile)),
+		safeCSV(cvssCSV(finding.PriorityScore)),
+		strconv.FormatBool(finding.KnownExploited),
+		safeCSV(finding.Applicability),
+		safeCSV(timestampCSV(finding.ThreatUpdated)),
 		safeCSV(finding.Description),
 		safeCSV(strings.Join(finding.Tags, " ")),
 		safeCSV(strings.Join(codes, " ")),
@@ -77,6 +90,13 @@ func (writer *csvWriter) Write(ctx context.Context, finding model.Finding) error
 	}
 	writer.output.Flush()
 	return writer.output.Error()
+}
+
+func timestampCSV(value *time.Time) string {
+	if value == nil {
+		return ""
+	}
+	return value.UTC().Format(time.RFC3339)
 }
 
 func (writer *csvWriter) Close() error {

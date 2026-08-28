@@ -17,11 +17,13 @@ schema `1.0` before the first public tag would freeze a pre-release field set.
   JSONL and the JSON document writer do not retain a finding slice. Console may buffer until
   `Close` so human output can be grouped by target, with exploitable findings listed first,
   then severity, and ANSI color on a TTY.
-- Supported formats are `console`, `json`, `jsonl`, `csv`, and `html`.
+- Supported formats are `console`, `json`, `jsonl`, `csv`, `html`, SARIF 2.1.0, and CycloneDX 1.6 VEX.
+- SARIF and VEX require a complete document and therefore retain at most 100,000 findings before
+  deterministic rendering. Exceeding the limit fails instead of silently truncating output.
 - Machine formats carry `schema_version` `0.1`. Console output is not a machine schema.
 - HTML uses `html.EscapeString` for all finding text, inline CSS only, and no external resources.
-  `garga scan` also writes a buffered, timestamped HTML assessment to the working directory; that
-  side channel does not change streaming stdout writers.
+  `garga scan` also writes a buffered, timestamped PDF assessment and can write a matching HTML
+  assessment to the working directory; those side channels do not change stdout writers.
 - `garga report` reads JSONL from stdin or `--input` and writes one of the formats. It does not
   contact the network.
 

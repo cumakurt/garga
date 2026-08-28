@@ -84,6 +84,7 @@ type Metadata struct {
 	BytesDownloaded      int64             `json:"bytes_downloaded"`
 	FailedRequests       int               `json:"failed_requests"`
 	RetriedRequests      int               `json:"retried_requests"`
+	AssessmentMode       bool              `json:"assessment_mode,omitempty"`
 }
 
 type CheckResult struct {

@@ -3,6 +3,7 @@ package report
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -67,7 +68,7 @@ func TestTerminalGroupsBySeverityAndCategoryWithColor(t *testing.T) {
 	if critical < 0 || highDisk < 0 || highJVM < 0 || info < 0 {
 		t.Fatalf("missing severity/category groups:\n%s", plain)
 	}
-	if !(critical < highDisk && highDisk < highJVM && highJVM < info) {
+	if critical >= highDisk || highDisk >= highJVM || highJVM >= info {
 		t.Fatalf("groups are not ordered by severity then category:\n%s", plain)
 	}
 	colored := renderTerminal(report, true)
@@ -98,6 +99,33 @@ func TestJSONReportSchema(t *testing.T) {
 	}
 	if document.SchemaVersion != "1.0" || document.Cluster == nil || document.Summary == nil || document.Metrics == nil || document.Findings == nil || document.Metadata == nil {
 		t.Fatalf("schema document = %#v", document)
+	}
+}
+
+func TestHealthPDFVulnerabilityDetailsUseScalarThreatEvidence(t *testing.T) {
+	t.Parallel()
+
+	finding := healthmodel.Finding{
+		Category: "Vulnerability",
+		Evidence: map[string]any{
+			"cve": []string{"CVE-2021-44228"}, "cvss": 10.0, "epss": 0.99999,
+			"epss_percentile": 1.0, "priority_score": 10.0, "known_exploited": true,
+			"applicability": "applicable", "threat_updated": "2026-08-27",
+			"evidence_codes": []string{"runtime_prerequisites_confirmed"},
+		},
+	}
+	flags, fields := healthPDFVulnerabilityDetails(finding)
+	if strings.Join(flags, ",") != "APPLICABLE,CISA KEV" {
+		t.Fatalf("flags = %#v", flags)
+	}
+	joined := fmt.Sprint(fields)
+	for _, expected := range []string{"CVE-2021-44228", "99.999%", "100.000%", "10.00 / 10", "2026-08-27"} {
+		if !strings.Contains(joined, expected) {
+			t.Fatalf("fields missing %q: %#v", expected, fields)
+		}
+	}
+	if strings.Contains(joined, "0x") {
+		t.Fatalf("fields contain a pointer address: %#v", fields)
 	}
 }
 

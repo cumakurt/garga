@@ -26,7 +26,8 @@ func newReportCommand() *cobra.Command {
 		Short: "Render JSONL findings into a report format",
 		Long: strings.TrimSpace(`
 Read JSONL findings from stdin or --input and write a console, JSON, JSONL,
-CSV, or standalone HTML report. The command does not contact the network.
+CSV, standalone HTML, SARIF, or CycloneDX VEX report.
+The command does not contact the network.
 
 Each input line must be one finding JSON object. Invalid records fail the
 command without echoing the payload. Console output is human-oriented and is
@@ -43,7 +44,7 @@ not a machine schema contract. Machine formats use finding schema 0.1.
 			})
 		},
 	}
-	cmd.Flags().StringVar(&format, "format", "", "output format: console, json, jsonl, csv, or html (default console)")
+	cmd.Flags().StringVar(&format, "format", "", "output format: console, json, jsonl, csv, html, sarif, or vex (default console)")
 	cmd.Flags().StringVar(&inputPath, "input", "", "JSONL findings file (default: stdin)")
 	cmd.Flags().StringVar(&configPath, "config", "", "optional configuration file")
 	return cmd
@@ -100,7 +101,7 @@ func runReport(cmd *cobra.Command, options reportOptions) (err error) {
 	}
 	newLogger(cfg.Logging.Level, cmd.ErrOrStderr()).Debug(
 		"report written",
-		logging.Bounded("format", string(format), "console", "json", "jsonl", "csv", "html"),
+		logging.Bounded("format", string(format), "console", "json", "jsonl", "csv", "html", "sarif", "vex"),
 	)
 	return nil
 }

@@ -24,13 +24,14 @@ type goModule struct {
 }
 
 type spdxDocument struct {
-	SPDXVersion       string           `json:"spdxVersion"`
-	DataLicense       string           `json:"dataLicense"`
-	SPDXID            string           `json:"SPDXID"`
-	Name              string           `json:"name"`
-	DocumentNamespace string           `json:"documentNamespace"`
-	CreationInfo      spdxCreationInfo `json:"creationInfo"`
-	Packages          []spdxPackage    `json:"packages"`
+	SPDXVersion       string             `json:"spdxVersion"`
+	DataLicense       string             `json:"dataLicense"`
+	SPDXID            string             `json:"SPDXID"`
+	Name              string             `json:"name"`
+	DocumentNamespace string             `json:"documentNamespace"`
+	CreationInfo      spdxCreationInfo   `json:"creationInfo"`
+	Packages          []spdxPackage      `json:"packages"`
+	Relationships     []spdxRelationship `json:"relationships"`
 }
 
 type spdxCreationInfo struct {
@@ -43,8 +44,15 @@ type spdxPackage struct {
 	Name             string `json:"name"`
 	VersionInfo      string `json:"versionInfo,omitempty"`
 	DownloadLocation string `json:"downloadLocation"`
+	FilesAnalyzed    bool   `json:"filesAnalyzed"`
 	LicenseConcluded string `json:"licenseConcluded"`
 	PrimaryPurpose   string `json:"primaryPackagePurpose,omitempty"`
+}
+
+type spdxRelationship struct {
+	ElementID      string `json:"spdxElementId"`
+	Type           string `json:"relationshipType"`
+	RelatedElement string `json:"relatedSpdxElement"`
 }
 
 func writeSBOM(cfg config) (string, error) {
@@ -63,6 +71,7 @@ func writeSBOM(cfg config) (string, error) {
 			Creators: []string{"Tool: garga-release"},
 		},
 	}
+	mainPackageID := ""
 	for index, module := range modules {
 		path := module.Path
 		version := module.Version
@@ -78,6 +87,7 @@ func writeSBOM(cfg config) (string, error) {
 		if module.Main {
 			license = "AGPL-3.0-only"
 			purpose = "APPLICATION"
+			mainPackageID = fmt.Sprintf("SPDXRef-Package-%d", index)
 		}
 		document.Packages = append(document.Packages, spdxPackage{
 			SPDXID:           fmt.Sprintf("SPDXRef-Package-%d", index),
@@ -88,6 +98,14 @@ func writeSBOM(cfg config) (string, error) {
 			PrimaryPurpose:   purpose,
 		})
 	}
+	if mainPackageID == "" {
+		return "", fmt.Errorf("go list returned no main module")
+	}
+	document.Relationships = []spdxRelationship{{
+		ElementID:      document.SPDXID,
+		Type:           "DESCRIBES",
+		RelatedElement: mainPackageID,
+	}}
 	encoded, err := json.MarshalIndent(document, "", "  ")
 	if err != nil {
 		return "", err

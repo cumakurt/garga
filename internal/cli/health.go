@@ -20,11 +20,20 @@ import (
 const defaultHealthTimeout = 2 * time.Minute
 
 func newHealthCommand(buildInfo BuildInfo) *cobra.Command {
+	return newHealthLikeCommand(buildInfo, false)
+}
+
+func newAssessCommand(buildInfo BuildInfo) *cobra.Command {
+	return newHealthLikeCommand(buildInfo, true)
+}
+
+func newHealthLikeCommand(buildInfo BuildInfo, assessment bool) *cobra.Command {
 	var options healthCLIOptions
-	cmd := &cobra.Command{
-		Use:   "health TARGET",
-		Short: "Run an advanced read-only Elasticsearch health assessment",
-		Long: strings.TrimSpace(`
+	options.securityAssessment = assessment
+	options.deep = assessment
+	use := "health TARGET"
+	short := "Run an advanced read-only Elasticsearch health assessment"
+	long := strings.TrimSpace(`
 Collect a bounded Elasticsearch cluster snapshot through GET-only APIs, normalize it,
 evaluate independent health checkers, correlate root causes, calculate a weighted score,
 and produce actionable operational findings.
@@ -42,7 +51,35 @@ refused unless --allow-plaintext-auth is explicitly set.
 Every completed assessment writes a timestamped standalone PDF report to the
 current directory and prints its path on stderr. Pass --html-report to also
 write the HTML health report.
-`),
+`)
+	if assessment {
+		use = "assess TARGET"
+		short = "Run an authenticated-capable GET-only security assessment"
+		long = strings.TrimSpace(`
+Run a single-target, GET-only Elasticsearch security and health assessment. Deep
+runtime inventory is enabled by default and potential CVEs are evaluated against
+the observed Elasticsearch version, node JDKs, installed modules/plugins, realm
+types, and safe configuration evidence when the credential can read them.
+
+Credentials are optional but this explicit mode is intended for authorized production
+assessment. Prefer --username with --password-stdin, --api-key-stdin, or
+--bearer-token-stdin. Credentials are never written to logs or reports and are refused
+over HTTP unless --allow-plaintext-auth is explicitly set. No state-changing request,
+exploit payload, credential spray, or advisory proof-of-concept is sent.
+
+The bundled signed-compatible signature corpus is used by default. --signatures DIR
+replaces it. Results distinguish version-only potential matches from runtime-applicable
+matches; applicability never claims successful exploitation.
+
+Every completed assessment writes a timestamped standalone PDF report to the
+current directory and prints its path on stderr. Pass --html-report to also
+write the matching HTML assessment report.
+`)
+	}
+	cmd := &cobra.Command{
+		Use:           use,
+		Short:         short,
+		Long:          long,
 		Args:          cobra.ExactArgs(1),
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -60,7 +97,7 @@ write the HTML health report.
 	}
 	cmd.Flags().StringVar(&options.configPath, "config", "", "optional configuration file")
 	cmd.Flags().StringVar(&options.profile, "profile", string(config.HealthProfileStandard), "health profile: development, small, standard, large, logging, search, security, or production")
-	cmd.Flags().BoolVar(&options.deep, "deep", false, "enable higher-cost ILM, task, snapshot, data stream, and security-setting collectors")
+	cmd.Flags().BoolVar(&options.deep, "deep", assessment, "enable higher-cost ILM, task, snapshot, data stream, and security-setting collectors")
 	cmd.Flags().StringVar(&options.format, "format", string(healthreport.FormatTerminal), "output format: terminal, json, html, or markdown")
 	cmd.Flags().DurationVar(&options.timeout, "timeout", defaultHealthTimeout, "overall health assessment timeout")
 	cmd.Flags().DurationVar(&options.requestTimeout, "request-timeout", config.DefaultRequestTimeout, "timeout for each Elasticsearch request")
@@ -79,12 +116,19 @@ write the HTML health report.
 	cmd.Flags().BoolVar(&options.allowPlaintextAuth, "allow-plaintext-auth", false, "allow credentials over HTTP (unsafe; reported as CRITICAL)")
 	cmd.Flags().BoolVar(&options.insecure, "insecure", false, "skip TLS certificate verification")
 	cmd.Flags().BoolVar(&options.debug, "debug", false, "enable redacted structured debug logs on stderr")
-	cmd.Flags().BoolVar(&options.htmlReport, "html-report", false, "also write the timestamped HTML health report")
+	htmlReportKind := "health"
+	if assessment {
+		htmlReportKind = "assessment"
+	}
+	cmd.Flags().BoolVar(&options.htmlReport, "html-report", false, "also write the timestamped HTML "+htmlReportKind+" report")
+	if assessment {
+		cmd.Flags().StringVar(&options.signatureDir, "signatures", "", "YAML signature directory (default: bundled Elasticsearch CVE corpus)")
+	}
 	return cmd
 }
 
 type healthCLIOptions struct {
-	target, configPath, profile, format, failOn, baselinePath, snapshotOut, username                    string
+	target, configPath, profile, format, failOn, baselinePath, snapshotOut, username, signatureDir      string
 	deep, overwriteSnapshot, passwordStdin, apiKeyStdin, bearerStdin                                    bool
 	allowPlaintextAuth, insecure, debug                                                                 bool
 	timeout, requestTimeout                                                                             time.Duration
@@ -93,22 +137,31 @@ type healthCLIOptions struct {
 	rate                                                                                                float64
 	profileSet, concurrencySet, rateSet, topNSet, maxResponseBytesSet, requestTimeoutSet, htmlReportSet bool
 	htmlReport                                                                                          bool
+	securityAssessment                                                                                  bool
 }
 
 func runHealth(cmd *cobra.Command, buildInfo BuildInfo, options healthCLIOptions) error {
+	commandName := "health"
+	reportKind := "health"
+	failureDescription := "health assessment"
+	if options.securityAssessment {
+		commandName = "assess"
+		reportKind = "assessment"
+		failureDescription = "assessment"
+	}
 	if options.timeout <= 0 || options.timeout > 24*time.Hour {
-		return healthInputError("health timeout must be greater than 0 and at most 24h", nil)
+		return healthInputError(commandName+" timeout must be greater than 0 and at most 24h", nil)
 	}
 	if options.overwriteSnapshot && strings.TrimSpace(options.snapshotOut) == "" {
 		return healthInputError("--force requires --snapshot-out", nil)
 	}
 	parsedTarget, err := target.Parse(options.target, "cli")
 	if err != nil {
-		return healthInputError("invalid health target", err)
+		return healthInputError("invalid "+commandName+" target", err)
 	}
 	endpoint, err := target.Endpoint(parsedTarget)
 	if err != nil {
-		return healthInputError("invalid health target", err)
+		return healthInputError("invalid "+commandName+" target", err)
 	}
 
 	secret, err := healthSecret(cmd, options)
@@ -153,11 +206,11 @@ func runHealth(cmd *cobra.Command, buildInfo BuildInfo, options healthCLIOptions
 	}
 	cfg, err := config.Load(config.Options{ConfigPath: options.configPath, Overrides: overrides})
 	if err != nil {
-		return healthInputError("invalid health configuration", err)
+		return healthInputError("invalid "+commandName+" configuration", err)
 	}
 	format, err := healthreport.ParseFormat(options.format)
 	if err != nil {
-		return healthInputError("health report format is not supported", err)
+		return healthInputError(commandName+" report format is not supported", err)
 	}
 	failOn, err := parseFailOn(options.failOn)
 	if err != nil {
@@ -170,7 +223,6 @@ func runHealth(cmd *cobra.Command, buildInfo BuildInfo, options healthCLIOptions
 			return healthInputError("invalid health baseline", err)
 		}
 	}
-
 	ctx, cancel := context.WithTimeout(cmd.Context(), options.timeout)
 	defer cancel()
 	logger := newLogger(cfg.Logging.Level, cmd.ErrOrStderr(), secret)
@@ -178,6 +230,7 @@ func runHealth(cmd *cobra.Command, buildInfo BuildInfo, options healthCLIOptions
 		Config: cfg, Endpoint: endpoint, Secret: secret, Deep: options.deep, Insecure: options.insecure,
 		AllowPlaintextAuth: options.allowPlaintextAuth, UserAgent: "garga/" + buildInfo.Version, ScannerVersion: buildInfo.Version,
 		Baseline: baseline, Logger: logger,
+		SignatureDir: options.signatureDir, AssessmentMode: options.securityAssessment,
 	})
 	if err != nil {
 		return classifyHealthError(err)
@@ -189,26 +242,26 @@ func runHealth(cmd *cobra.Command, buildInfo BuildInfo, options healthCLIOptions
 	}
 	artifactPath, err := healthreport.WriteTimestampedPDF(result.Report)
 	if err != nil {
-		return &executionError{exitCode: ExitInternalError, message: "write timestamped health PDF report", cause: err}
+		return &executionError{exitCode: ExitInternalError, message: "write timestamped " + reportKind + " PDF report", cause: err}
 	}
 	if err := healthreport.Write(cmd.OutOrStdout(), format, result.Report); err != nil {
-		return &executionError{exitCode: ExitInternalError, message: "write health report", cause: err}
+		return &executionError{exitCode: ExitInternalError, message: "write " + reportKind + " report", cause: err}
 	}
-	if _, err := fmt.Fprintf(cmd.ErrOrStderr(), "garga: PDF health report written to %s\n", artifactPath); err != nil {
-		return &executionError{exitCode: ExitInternalError, message: "write health report notice", cause: err}
+	if _, err := fmt.Fprintf(cmd.ErrOrStderr(), "garga: PDF %s report written to %s\n", reportKind, artifactPath); err != nil {
+		return &executionError{exitCode: ExitInternalError, message: "write " + reportKind + " report notice", cause: err}
 	}
 	if cfg.Output.HTMLReport {
 		htmlPath, htmlErr := healthreport.WriteTimestampedHTML(result.Report)
 		if htmlErr != nil {
-			return &executionError{exitCode: ExitInternalError, message: "write timestamped health HTML report", cause: htmlErr}
+			return &executionError{exitCode: ExitInternalError, message: "write timestamped " + reportKind + " HTML report", cause: htmlErr}
 		}
-		if _, err := fmt.Fprintf(cmd.ErrOrStderr(), "garga: HTML health report written to %s\n", htmlPath); err != nil {
-			return &executionError{exitCode: ExitInternalError, message: "write health report notice", cause: err}
+		if _, err := fmt.Fprintf(cmd.ErrOrStderr(), "garga: HTML %s report written to %s\n", reportKind, htmlPath); err != nil {
+			return &executionError{exitCode: ExitInternalError, message: "write " + reportKind + " report notice", cause: err}
 		}
 	}
 	if failOn != "" {
 		if code, severity := healthFailureCode(result.Report.Findings, failOn); code != 0 {
-			return &executionError{exitCode: code, message: "health assessment completed at " + string(severity) + " severity"}
+			return &executionError{exitCode: code, message: failureDescription + " completed at " + string(severity) + " severity"}
 		}
 	}
 	return nil

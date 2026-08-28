@@ -258,7 +258,7 @@ func TestScanCSVReportsBundledCVE(t *testing.T) {
 		t.Fatalf("exit code = %d; stderr = %q", exitCode, stderr.String())
 	}
 	csvOut := stdout.String()
-	if !strings.Contains(csvOut, "cve,cvss,description") {
+	if !strings.Contains(csvOut, "cve,cvss,epss,epss_percentile,priority_score,known_exploited,applicability,threat_updated,description") {
 		t.Fatalf("csv missing detection columns: %q", csvOut)
 	}
 	if !strings.Contains(csvOut, "CVE-2023-31418") {
@@ -473,7 +473,7 @@ func TestScanWritesTimestampedPDFReport(t *testing.T) {
 		t.Fatalf("default scan wrote HTML artifacts = %v", htmlArtifacts)
 	}
 	assertTimestampedPDF(t, reportDirectory, "garga-scan-*.pdf", stderr.String(), "PDF scan report written to", []string{
-		"Penetration Test Report",
+		"Test Report",
 		"1. Executive summary",
 		"1. F-",
 		"Field",
@@ -535,7 +535,7 @@ func TestScanHtmlReportFlagWritesHTMLAlongsidePDF(t *testing.T) {
 	if !bytes.Contains(payload, []byte("1. Executive summary")) {
 		t.Fatal("HTML artifact missing executive summary")
 	}
-	assertTimestampedPDF(t, reportDirectory, "garga-scan-*.pdf", stderr.String(), "PDF scan report written to", []string{"Penetration Test Report"})
+	assertTimestampedPDF(t, reportDirectory, "garga-scan-*.pdf", stderr.String(), "PDF scan report written to", []string{"Test Report"})
 }
 
 func assertTimestampedPDF(t *testing.T, directory, pattern, stderr, notice string, needles []string) {

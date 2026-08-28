@@ -25,6 +25,9 @@ type healthHTMLDocument struct {
 	DeveloperName        string
 	DeveloperGitHubURL   string
 	DeveloperLinkedInURL string
+	Title                string
+	Subtitle             string
+	EngineLabel          string
 }
 
 var (
@@ -56,6 +59,9 @@ func writeHTML(output io.Writer, report healthmodel.Report) error {
 		DeveloperName:        garga.DeveloperName,
 		DeveloperGitHubURL:   garga.DeveloperGitHubURL,
 		DeveloperLinkedInURL: garga.DeveloperLinkedInURL,
+		Title:                healthReportTitle(report),
+		Subtitle:             healthReportSubtitle(report),
+		EngineLabel:          healthEngineLabel(report),
 	}
 	if err := healthHTMLTemplate.Execute(output, document); err != nil {
 		return fmt.Errorf("write health HTML report: %w", err)
@@ -118,6 +124,27 @@ func healthTone(value string) string {
 	}
 }
 
+func healthReportTitle(report healthmodel.Report) string {
+	if report.Metadata.AssessmentMode {
+		return "Elasticsearch Security and Health Assessment"
+	}
+	return "Elasticsearch Health Check and Assessment"
+}
+
+func healthReportSubtitle(report healthmodel.Report) string {
+	if report.Metadata.AssessmentMode {
+		return "Context-aware evaluation of Elasticsearch vulnerabilities, runtime consistency, configuration, health, and resilience. No exploit or state-changing operation was performed."
+	}
+	return "Evidence-based evaluation of cluster health, capacity, performance, reliability, configuration, and security. No state-changing Elasticsearch operation was performed."
+}
+
+func healthEngineLabel(report healthmodel.Report) string {
+	if report.Metadata.AssessmentMode {
+		return "Read-only Elasticsearch Security Assessment Engine"
+	}
+	return "Read-only Elasticsearch Health Assessment Engine"
+}
+
 const healthHTMLSource = `<!doctype html>
 <html lang="en">
 <head>
@@ -125,7 +152,7 @@ const healthHTMLSource = `<!doctype html>
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light">
-<title>garga Elasticsearch Health Check &amp; Assessment — {{.Report.Cluster.Name}}</title>
+<title>garga {{.Title}} — {{.Report.Cluster.Name}}</title>
 <style>
 :root{--blue:#075985;--blue-2:#0b6ea8;--teal:#0f766e;--ink:#172033;--muted:#5f6b7a;--line:#d9e2ec;--panel:#fff;--canvas:#f4f7fa;--critical:#b42318;--critical-bg:#fff0ee;--high:#c2410c;--high-bg:#fff4e8;--medium:#a16207;--medium-bg:#fff9db;--low:#0369a1;--low-bg:#edf8ff;--info:#475569;--info-bg:#f1f5f9;--ok:#15803d;--ok-bg:#edfaf1;--shadow:0 10px 30px rgba(15,45,70,.08)}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--canvas);color:var(--ink);font:14px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}a{color:var(--blue);text-decoration:none}a:hover{text-decoration:underline}.page{max-width:1440px;margin:0 auto;padding:30px}.masthead{background:linear-gradient(120deg,#fff 0%,#f7fbfe 70%,#edf7fb 100%);border:1px solid var(--line);border-top:6px solid var(--blue-2);border-radius:14px;box-shadow:var(--shadow);padding:24px 28px;display:flex;gap:28px;justify-content:space-between;align-items:center}.brand{display:flex;gap:20px;align-items:center}.brand img{width:176px;height:88px;object-fit:contain}.eyebrow{color:var(--blue-2);font-weight:800;letter-spacing:.12em;text-transform:uppercase;font-size:11px}.brand h1{font-size:27px;line-height:1.15;margin:5px 0 8px}.subtitle{color:var(--muted);max-width:760px}.score{min-width:200px;text-align:center;padding:18px 22px;border-radius:14px;border:1px solid var(--line);background:#fff}.score-value{font-size:48px;font-weight:850;line-height:1;color:var(--blue)}.score-label{font-weight:750;margin-top:7px}.score small{color:var(--muted);display:block;margin-top:6px}.score.CRITICAL{background:var(--critical-bg);border-color:#f0c2bd}.score.HIGH{background:var(--high-bg);border-color:#f3d0b5}.score.MEDIUM{background:var(--medium-bg);border-color:#ead889}.score.LOW{background:var(--low-bg);border-color:#bdd9ee}.score.INFO{background:var(--info-bg);border-color:#d5dde6}.score.OK{background:var(--ok-bg);border-color:#c6e6cf}.score.CRITICAL .score-value,.score.CRITICAL .score-label{color:var(--critical)}.score.HIGH .score-value,.score.HIGH .score-label{color:var(--high)}.score.MEDIUM .score-value,.score.MEDIUM .score-label{color:var(--medium)}.score.LOW .score-value,.score.LOW .score-label{color:var(--low)}.score.INFO .score-value,.score.INFO .score-label{color:var(--info)}.score.OK .score-value,.score.OK .score-label{color:var(--ok)}.nav{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}.nav a{background:#fff;border:1px solid var(--line);border-radius:999px;padding:7px 12px;font-size:12px;font-weight:700}.section{margin-top:22px}.section-head{display:flex;align-items:end;justify-content:space-between;gap:16px;margin:0 0 10px}.section h2{font-size:19px;margin:0}.section-note{color:var(--muted);font-size:12px}.grid{display:grid;gap:14px}.grid-4{grid-template-columns:repeat(4,minmax(0,1fr))}.grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 4px 16px rgba(15,45,70,.045);padding:17px}.card.metric{border-left:5px solid var(--line)}.card.metric.CRITICAL,.status-cell.CRITICAL{background:var(--critical-bg);border-color:#f0c2bd}.card.metric.HIGH,.status-cell.HIGH{background:var(--high-bg);border-color:#f3d0b5}.card.metric.MEDIUM,.status-cell.MEDIUM{background:var(--medium-bg);border-color:#ead889}.card.metric.LOW,.status-cell.LOW{background:var(--low-bg);border-color:#bdd9ee}.card.metric.INFO,.status-cell.INFO{background:var(--info-bg);border-color:#d5dde6}.card.metric.OK,.status-cell.OK{background:var(--ok-bg);border-color:#c6e6cf}.card.metric.CRITICAL,.status-cell.CRITICAL{border-left:5px solid var(--critical)}.card.metric.HIGH,.status-cell.HIGH{border-left:5px solid var(--high)}.card.metric.MEDIUM,.status-cell.MEDIUM{border-left:5px solid var(--medium)}.card.metric.LOW,.status-cell.LOW{border-left:5px solid var(--low)}.card.metric.INFO,.status-cell.INFO{border-left:5px solid var(--info)}.card.metric.OK,.status-cell.OK{border-left:5px solid var(--ok)}.card.metric.CRITICAL .metric-value,.status-cell.CRITICAL strong{color:var(--critical)}.card.metric.HIGH .metric-value,.status-cell.HIGH strong{color:var(--high)}.card.metric.MEDIUM .metric-value,.status-cell.MEDIUM strong{color:var(--medium)}.card.metric.LOW .metric-value,.status-cell.LOW strong{color:var(--low)}.card.metric.INFO .metric-value,.status-cell.INFO strong{color:var(--info)}.card.metric.OK .metric-value,.status-cell.OK strong{color:var(--ok)}.metric-label{color:var(--muted);font-size:11px;font-weight:750;letter-spacing:.06em;text-transform:uppercase}.metric-value{font-size:23px;font-weight:800;margin-top:5px;overflow-wrap:anywhere}.metric-detail{font-size:12px;color:var(--muted);margin-top:3px}.status-row{display:grid;grid-template-columns:1.5fr repeat(5,1fr);gap:10px}.status-cell{border:1px solid var(--line);border-radius:10px;background:#fff;padding:13px}.status-cell strong{display:block;font-size:21px}.status-cell span{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em}.risk{border-left:5px solid var(--line);position:relative}.risk.CRITICAL,.finding.CRITICAL{border-left-color:var(--critical)}.risk.HIGH,.finding.HIGH{border-left-color:var(--high)}.risk.MEDIUM,.finding.MEDIUM{border-left-color:var(--medium)}.risk.LOW,.finding.LOW{border-left-color:var(--low)}.risk.INFO,.finding.INFO{border-left-color:var(--info)}.badge{display:inline-block;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:850;letter-spacing:.04em}.badge.CRITICAL{color:var(--critical);background:var(--critical-bg)}.badge.HIGH{color:var(--high);background:var(--high-bg)}.badge.MEDIUM{color:var(--medium);background:var(--medium-bg)}.badge.LOW{color:var(--low);background:var(--low-bg)}.badge.INFO{color:var(--info);background:var(--info-bg)}.badge.OK,.success{color:var(--ok);background:var(--ok-bg)}.risk h3,.finding h3{font-size:15px;margin:9px 0 3px}.resource{color:var(--muted);font-size:12px;overflow-wrap:anywhere}.table-card{padding:0;overflow:hidden}table{border-collapse:collapse;width:100%}th{background:#f2f6f9;color:#425466;font-size:10px;text-transform:uppercase;letter-spacing:.06em;text-align:left}th,td{border-bottom:1px solid var(--line);padding:10px 13px;vertical-align:top}tr:last-child td{border-bottom:0}.finding{border-left:5px solid var(--line);padding:0;overflow:hidden}.finding-head{padding:17px 19px;background:#fbfcfd;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px}.finding-title{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.finding-id{font:700 12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--blue)}.finding-body{padding:18px 19px}.finding-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.detail h4{font-size:11px;color:#425466;text-transform:uppercase;letter-spacing:.06em;margin:0 0 5px}.detail p{margin:0;white-space:pre-wrap}.evidence{background:#f6f8fa;border:1px solid #e5eaf0;border-radius:8px;padding:10px 12px;margin-top:14px;display:grid;grid-template-columns:minmax(130px,.35fr) 1fr;gap:5px 12px}.evidence dt{font:650 11px ui-monospace,SFMono-Regular,Menlo,monospace;color:#475569;overflow-wrap:anywhere}.evidence dd{margin:0;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}.correlation{border-top:4px solid var(--teal)}.action h3{font-size:14px;margin:0 0 9px}.action ol{margin:0;padding-left:20px}.action li+li{margin-top:7px}.muted{color:var(--muted)}.empty{padding:22px;color:var(--muted);text-align:center}.footer{margin:24px 0 4px;color:var(--muted);font-size:11px;text-align:center}.developer{margin-top:12px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}.developer a{background:#fff;border:1px solid var(--line);border-radius:999px;padding:7px 12px;font-size:12px;font-weight:700;color:var(--blue)}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}.collector-skipped{color:#8a5a00}.collector-failed{color:var(--critical)}
@@ -139,7 +166,7 @@ const healthHTMLSource = `<!doctype html>
 <header class="masthead">
   <div class="brand">
     <img src="data:image/png;base64,{{.LogoBase64}}" alt="garga logo">
-    <div><div class="eyebrow">Operational Intelligence Report</div><h1>Elasticsearch Health Check &amp; Assessment</h1><div class="subtitle">Evidence-based evaluation of cluster health, capacity, performance, reliability, configuration, and security. No state-changing Elasticsearch operation was performed.</div></div>
+    <div><div class="eyebrow">{{if .Report.Metadata.AssessmentMode}}Security and Operational Intelligence Report{{else}}Operational Intelligence Report{{end}}</div><h1>{{.Title}}</h1><div class="subtitle">{{.Subtitle}}</div></div>
   </div>
   <div class="score {{healthTone .Report.Summary.OverallHealth}}"><div class="score-value">{{.Report.Summary.HealthScore}}</div><div class="score-label">{{.Report.Summary.OverallHealth}}</div><small>Overall score / 100</small></div>
 </header>
@@ -220,7 +247,7 @@ const healthHTMLSource = `<!doctype html>
 </div></div></section>
 
 <footer class="footer">
-  <div>Generated by garga · Read-only Elasticsearch Health Assessment Engine · No external scripts or network resources</div>
+  <div>Generated by garga · {{.EngineLabel}} · No external scripts or network resources</div>
   <div class="developer"><span>Developer {{.DeveloperName}}</span><a href="{{.DeveloperLinkedInURL}}" rel="noopener noreferrer" target="_blank">LinkedIn</a><a href="{{.DeveloperGitHubURL}}" rel="noopener noreferrer" target="_blank">GitHub</a></div>
 </footer>
 </main>

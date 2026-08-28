@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -13,6 +14,8 @@ import (
 	"github.com/cumakurt/garga/internal/config"
 	"github.com/cumakurt/garga/internal/credential"
 	"github.com/cumakurt/garga/internal/fingerprint"
+	"github.com/cumakurt/garga/internal/health"
+	healthmodel "github.com/cumakurt/garga/internal/health/model"
 	"github.com/cumakurt/garga/internal/model"
 	"github.com/cumakurt/garga/internal/probe"
 	"github.com/cumakurt/garga/internal/transport"
@@ -28,8 +31,71 @@ func TestElasticsearchIntegrationMatrix(t *testing.T) {
 		t.Run(lane.name(), func(t *testing.T) {
 			cluster := startCluster(t, lane)
 			assessCluster(t, cluster)
+			assessHealthEngine(t, cluster)
 		})
 	}
+}
+
+func assessHealthEngine(t *testing.T, cluster *esCluster) {
+	t.Helper()
+
+	cfg := config.Defaults()
+	cfg.Scanner.RequestTimeout = 10 * time.Second
+	cfg.Scanner.Retries = 0
+	cfg.Health.RequestsPerSecond = 100
+
+	var secret *credential.Secret
+	if cluster.Lane.Auth {
+		var err error
+		secret, err = credential.NewBasic(elasticUsername, []byte(cluster.Password))
+		if err != nil {
+			t.Fatalf("assessment credential: %v", err)
+		}
+		defer secret.Destroy()
+		cluster.secrets = append(cluster.secrets, secretTokens(secret)...)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	result, err := health.Run(ctx, health.Options{
+		Config: cfg, Endpoint: cluster.endpoint(), Secret: secret, Deep: true,
+		Insecure: cluster.Lane.TLS, AllowPlaintextAuth: cluster.Lane.Auth && !cluster.Lane.TLS,
+		UserAgent: "garga/integration", ScannerVersion: "integration", AssessmentMode: true,
+	})
+	if err != nil {
+		t.Fatalf("contextual assessment: %s\n%s", cluster.redact(err.Error()), cluster.diagnostics())
+	}
+	if !result.Report.Metadata.AssessmentMode || !result.Report.Metadata.DeepScanEnabled {
+		t.Fatalf("assessment metadata = %#v", result.Report.Metadata)
+	}
+	if result.Report.Cluster.Version.Number != cluster.Lane.Version || result.Report.Summary.Nodes < 1 {
+		t.Fatalf("assessment cluster version=%q nodes=%d, want %q and at least one node",
+			result.Report.Cluster.Version.Number, result.Report.Summary.Nodes, cluster.Lane.Version)
+	}
+	if result.Report.Summary.CheckCoverage.Available != 39 {
+		t.Fatalf("assessment check coverage available=%d, want 39", result.Report.Summary.CheckCoverage.Available)
+	}
+	if !collectorSucceeded(result.Report.Metadata.Collectors, "nodes_info") {
+		t.Fatalf("assessment did not collect node runtime inventory: %#v", result.Report.Metadata.Collectors)
+	}
+	encoded, err := json.Marshal(result.Report)
+	if err != nil {
+		t.Fatalf("marshal assessment report: %v", err)
+	}
+	for _, token := range cluster.secrets {
+		if token != "" && strings.Contains(string(encoded), token) {
+			t.Fatal("assessment report contains credential material")
+		}
+	}
+}
+
+func collectorSucceeded(results []healthmodel.CollectorResult, name string) bool {
+	for _, result := range results {
+		if result.Name == name {
+			return result.Status == "success"
+		}
+	}
+	return false
 }
 
 func assessCluster(t *testing.T, cluster *esCluster) {
@@ -187,13 +253,20 @@ func probeReady(cluster *esCluster) error {
 		return fmt.Errorf("ready status %d", result.StatusCode)
 	}
 
-	// 401 only means HTTP is up. Reserved-user auth still fails until .security shards exist.
-	response, err := authenticatedGET(ctx, factory.Client(), cluster, "/")
+	// A successful root request does not prove that the .security index is ready.
+	authentication, err := authenticatedGET(ctx, factory.Client(), cluster, "/_security/_authenticate")
 	if err != nil {
 		return err
 	}
-	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("elastic credential not accepted status %d", response.StatusCode)
+	if authentication.StatusCode != http.StatusOK {
+		return fmt.Errorf("security authentication status %d", authentication.StatusCode)
+	}
+	root, err := authenticatedGET(ctx, factory.Client(), cluster, "/")
+	if err != nil {
+		return err
+	}
+	if root.StatusCode != http.StatusOK {
+		return fmt.Errorf("authenticated root status %d", root.StatusCode)
 	}
 	health, err := authenticatedGET(ctx, factory.Client(), cluster, "/_cluster/health")
 	if err != nil {
@@ -202,8 +275,8 @@ func probeReady(cluster *esCluster) error {
 	if health.StatusCode != http.StatusOK {
 		return fmt.Errorf("cluster health status %d", health.StatusCode)
 	}
-	if !clusterStatusReady(health.Body) {
-		return fmt.Errorf("cluster health is not yellow or green")
+	if !clusterStatusGreen(health.Body) {
+		return fmt.Errorf("authenticated cluster health is not green")
 	}
 	return nil
 }

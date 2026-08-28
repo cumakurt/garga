@@ -16,6 +16,7 @@ import (
 	healthreport "github.com/cumakurt/garga/internal/health/report"
 	basemodel "github.com/cumakurt/garga/internal/model"
 	"github.com/cumakurt/garga/internal/transport"
+	"github.com/cumakurt/garga/internal/vulnerability"
 )
 
 type Options struct {
@@ -30,6 +31,8 @@ type Options struct {
 	Baseline           *healthmodel.Baseline
 	Logger             *slog.Logger
 	Now                func() time.Time
+	SignatureDir       string
+	AssessmentMode     bool
 }
 
 type Result struct {
@@ -49,6 +52,18 @@ func Run(ctx context.Context, options Options) (Result, error) {
 	}
 	if options.Secret != nil && options.Endpoint.Scheme == basemodel.SchemeHTTP && !options.AllowPlaintextAuth {
 		return Result{}, &Error{Kind: ErrorConfiguration, Cause: errors.New("refusing to send credentials over plaintext HTTP without explicit override")}
+	}
+	var signatures []vulnerability.Signature
+	if options.AssessmentMode {
+		var err error
+		if options.SignatureDir == "" {
+			signatures, err = vulnerability.LoadBundled()
+		} else {
+			signatures, err = vulnerability.LoadDir(options.SignatureDir)
+		}
+		if err != nil {
+			return Result{}, &Error{Kind: ErrorConfiguration, Cause: fmt.Errorf("invalid vulnerability signature corpus: %w", err)}
+		}
 	}
 	if options.Now == nil {
 		options.Now = time.Now
@@ -93,7 +108,7 @@ func Run(ctx context.Context, options Options) (Result, error) {
 		}
 		snapshot.Baseline = options.Baseline
 	}
-	registry, err := checker.DefaultRegistry(options.Config.Health)
+	registry, err := checker.DefaultRegistry(options.Config.Health, signatures...)
 	if err != nil {
 		return Result{}, &Error{Kind: ErrorInternal, Cause: err}
 	}
@@ -103,7 +118,7 @@ func Run(ctx context.Context, options Options) (Result, error) {
 	}
 	duration := options.Now().Sub(started)
 	report := healthreport.Build(snapshot, findings, checks, healthreport.BuildOptions{
-		ScannerVersion: options.ScannerVersion, Profile: options.Config.Health.Profile, Deep: options.Deep, Duration: duration, TopN: options.Config.Health.TopN,
+		ScannerVersion: options.ScannerVersion, Profile: options.Config.Health.Profile, Deep: options.Deep, Duration: duration, TopN: options.Config.Health.TopN, AssessmentMode: options.AssessmentMode,
 	})
 	if options.Logger != nil {
 		options.Logger.Debug("health assessment completed",

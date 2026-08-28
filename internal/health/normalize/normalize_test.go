@@ -77,6 +77,24 @@ func TestBuildAnonymousAccessRequiresAuthenticateEvidence(t *testing.T) {
 	}
 }
 
+func TestBuildNormalizesNodeRuntimeInventory(t *testing.T) {
+	t.Parallel()
+
+	responses := fixtureResponses([]byte(`{"cluster_name":"fixture","cluster_uuid":"uuid","version":{"number":"8.19.19"}}`))
+	responses.Responses["nodes_info"] = transport.Response{StatusCode: 200, Body: []byte(`{"nodes":{"node-1":{"name":"data-1","version":"8.19.19","roles":["data_hot"],"jvm":{"version":"21.0.4","vm_vendor":"Eclipse Adoptium"},"modules":[{"name":"ingest-attachment","version":"8.19.19"}],"plugins":[{"name":"repository-s3","version":"8.19.19"}]}}}`)}
+	snapshot, err := Build(responses, basemodel.Endpoint{Scheme: basemodel.SchemeHTTPS, Host: "es.example", Port: 9200}, true, time.Now())
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	node := snapshot.Nodes[0]
+	if node.Version != "8.19.19" || node.JVM.Vendor != "Eclipse Adoptium" || len(node.Components) != 2 {
+		t.Fatalf("runtime inventory = %#v", node)
+	}
+	if node.Components[0].Name != "ingest-attachment" || node.Components[0].Type != "module" {
+		t.Fatalf("components = %#v", node.Components)
+	}
+}
+
 func TestBuildCapsSnapshotHistoryPerRepository(t *testing.T) {
 	t.Parallel()
 	responses := fixtureResponses([]byte(`{"cluster_name":"fixture","cluster_uuid":"uuid","version":{"number":"8.19.19"}}`))

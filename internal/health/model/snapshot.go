@@ -77,8 +77,10 @@ func (settings ClusterSettings) Effective(key string) (string, bool) {
 type Node struct {
 	ID                  string                `json:"id"`
 	Name                string                `json:"name"`
+	Version             string                `json:"version,omitempty"`
 	IP                  string                `json:"ip,omitempty"`
 	Roles               []string              `json:"roles,omitempty"`
+	Components          []NodeComponent       `json:"components,omitempty"`
 	AvailableProcessors int                   `json:"available_processors"`
 	JVM                 JVMStats              `json:"jvm"`
 	CPU                 CPUStats              `json:"cpu"`
@@ -104,6 +106,7 @@ func (node Node) HasDataRole() bool {
 
 type JVMStats struct {
 	Version            string `json:"version,omitempty"`
+	Vendor             string `json:"vendor,omitempty"`
 	HeapMaxBytes       int64  `json:"heap_max_bytes"`
 	HeapCommittedBytes int64  `json:"heap_committed_bytes"`
 	HeapUsedBytes      int64  `json:"heap_used_bytes"`
@@ -113,6 +116,12 @@ type JVMStats struct {
 	YoungGCTimeMillis  int64  `json:"young_gc_time_millis"`
 	OldGCCount         int64  `json:"old_gc_count"`
 	OldGCTimeMillis    int64  `json:"old_gc_time_millis"`
+}
+
+type NodeComponent struct {
+	Name    string `json:"name"`
+	Version string `json:"version,omitempty"`
+	Type    string `json:"type"`
 }
 
 type CPUStats struct {

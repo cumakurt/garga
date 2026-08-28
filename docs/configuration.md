@@ -12,7 +12,7 @@ The configuration is fully resolved and validated before a command may start net
 to the typed override layer. `garga fingerprint` also binds `--threshold` to
 `fingerprint.threshold`. `garga health` binds `--profile`, `--concurrency`,
 `--requests-per-second`, `--top-n`, `--max-response-bytes`, and `--request-timeout`.
-`garga scan` and `garga health` bind `--html-report` to `output.html_report`.
+`garga scan`, `garga health`, and `garga assess` bind `--html-report` to `output.html_report`.
 `garga report` uses `output.format` when `--format` is omitted.
 
 ## Selecting a file
@@ -42,8 +42,8 @@ all built-in defaults.
 | `health.requests_per_second` | `GARGA_HEALTH_RATE` | `5` | greater than `0`, at most `100` |
 | `health.top_n` | `GARGA_HEALTH_TOP_N` | `5` | `1` through `100` |
 | `health.max_response_bytes` | `GARGA_HEALTH_MAX_RESPONSE_BYTES` | `33554432` | `1024` through `134217728` bytes |
-| `output.format` | `GARGA_OUTPUT_FORMAT` | `console` | `console`, `json`, `jsonl`, `csv`, `html` |
-| `output.html_report` | `GARGA_OUTPUT_HTML_REPORT` | `false` | boolean; also write timestamped HTML CWD reports for `scan` and `health` |
+| `output.format` | `GARGA_OUTPUT_FORMAT` | `console` | `console`, `json`, `jsonl`, `csv`, `html`, `sarif`, `vex` |
+| `output.html_report` | `GARGA_OUTPUT_HTML_REPORT` | `false` | boolean; also write timestamped HTML CWD reports for `scan`, `health`, and `assess` |
 | `logging.level` | `GARGA_LOG_LEVEL` | `warn` | `error`, `warn`, `info`, `debug` |
 
 Health thresholds are nested below `health.thresholds`. Percentage triplets must be ordered as
@@ -61,7 +61,7 @@ API keys, or passwords. Authentication input uses `garga auth-check` and `garga 
 stdin secrets as documented in [credentials.md](credentials.md) and
 [credential-audit.md](credential-audit.md). Scanner rate settings do not apply to credential
 audit. `garga scan`, `garga fingerprint`, and `garga vuln` do not accept credentials. `garga health`
-keeps authentication outside this configuration model: stdin is preferred, while the dedicated
+and `garga assess` keep authentication outside this configuration model: stdin is preferred, while the dedicated
 `ESHEALTH_USERNAME`, `ESHEALTH_PASSWORD`, `ESHEALTH_API_KEY`, and `ESHEALTH_BEARER_TOKEN`
 variables exist for automation. Those variables are never included in configuration formatting,
 logs, snapshots, or reports.

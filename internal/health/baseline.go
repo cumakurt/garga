@@ -15,32 +15,62 @@ import (
 const maxBaselineBytes = 16 * 1024 * 1024
 
 func LoadBaseline(path string) (*healthmodel.Baseline, error) {
+	baseline, _, err := LoadBaselineBounded(path, maxBaselineBytes)
+	return baseline, err
+}
+
+// LoadBaselineBounded reads a regular non-symlink baseline through a caller-provided
+// byte budget and reports the bytes charged to that budget.
+func LoadBaselineBounded(path string, limit int64) (*healthmodel.Baseline, int64, error) {
+	if limit <= 0 {
+		return nil, 0, fmt.Errorf("health baseline byte budget is exhausted")
+	}
+	if limit > maxBaselineBytes {
+		limit = maxBaselineBytes
+	}
+	linkInfo, err := os.Lstat(path)
+	if err != nil {
+		return nil, 0, fmt.Errorf("inspect health baseline: %w", err)
+	}
+	if linkInfo.Mode()&os.ModeSymlink != 0 || !linkInfo.Mode().IsRegular() {
+		return nil, 0, fmt.Errorf("health baseline must be a regular non-symlink file")
+	}
+	if linkInfo.Size() > limit {
+		return nil, 0, fmt.Errorf("health baseline exceeds %d bytes", limit)
+	}
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("open health baseline: %w", err)
+		return nil, 0, fmt.Errorf("open health baseline: %w", err)
 	}
 	defer file.Close()
-	payload, err := io.ReadAll(io.LimitReader(file, maxBaselineBytes+1))
-	if err != nil {
-		return nil, fmt.Errorf("read health baseline: %w", err)
+	openedInfo, err := file.Stat()
+	if err != nil || !openedInfo.Mode().IsRegular() || !os.SameFile(linkInfo, openedInfo) || openedInfo.Size() != linkInfo.Size() {
+		return nil, 0, fmt.Errorf("health baseline changed while opening")
 	}
-	if len(payload) > maxBaselineBytes {
-		return nil, fmt.Errorf("health baseline exceeds %d bytes", maxBaselineBytes)
+	payload, err := io.ReadAll(io.LimitReader(file, limit+1))
+	if err != nil {
+		return nil, 0, fmt.Errorf("read health baseline: %w", err)
+	}
+	if int64(len(payload)) > limit {
+		return nil, 0, fmt.Errorf("health baseline exceeds %d bytes", limit)
+	}
+	if int64(len(payload)) != openedInfo.Size() {
+		return nil, 0, fmt.Errorf("health baseline changed while reading")
 	}
 	decoder := json.NewDecoder(bytes.NewReader(payload))
 	decoder.DisallowUnknownFields()
 	var baseline healthmodel.Baseline
 	if err := decoder.Decode(&baseline); err != nil {
-		return nil, fmt.Errorf("decode health baseline: invalid document")
+		return nil, 0, fmt.Errorf("decode health baseline: invalid document")
 	}
 	var trailing any
 	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		return nil, fmt.Errorf("decode health baseline: document must contain exactly one JSON value")
+		return nil, 0, fmt.Errorf("decode health baseline: document must contain exactly one JSON value")
 	}
 	if baseline.SchemaVersion != healthmodel.BaselineSchemaVersion || baseline.Timestamp.IsZero() || baseline.ClusterUUID == "" {
-		return nil, fmt.Errorf("decode health baseline: required metadata is missing or unsupported")
+		return nil, 0, fmt.Errorf("decode health baseline: required metadata is missing or unsupported")
 	}
-	return &baseline, nil
+	return &baseline, int64(len(payload)), nil
 }
 
 func SaveBaseline(path string, baseline healthmodel.Baseline, overwrite bool) (err error) {

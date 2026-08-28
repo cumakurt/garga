@@ -123,9 +123,9 @@ func (cfg Config) Validate() error {
 	}
 
 	switch cfg.Output.Format {
-	case OutputConsole, OutputJSON, OutputJSONL, OutputCSV, OutputHTML:
+	case OutputConsole, OutputJSON, OutputJSONL, OutputCSV, OutputHTML, OutputSARIF, OutputVEX:
 	default:
-		problems = append(problems, "output.format must be one of console, json, jsonl, csv, or html")
+		problems = append(problems, "output.format must be one of console, json, jsonl, csv, html, sarif, or vex")
 	}
 
 	switch cfg.Logging.Level {

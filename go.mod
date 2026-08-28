@@ -1,6 +1,6 @@
 module github.com/cumakurt/garga
 
-go 1.26.0
+go 1.26.6
 
 require (
 	github.com/go-pdf/fpdf v0.9.0

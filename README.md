@@ -18,7 +18,7 @@ release documents them as such.
 | Developer | [Cuma Kurt](https://github.com/cumakurt) · [LinkedIn](https://www.linkedin.com/in/cuma-kurt-34414917/) |
 | Module | [`github.com/cumakurt/garga`](https://github.com/cumakurt/garga) |
 | License | [GNU AGPL v3.0 only](LICENSE) (`AGPL-3.0-only`) |
-| Language | Go 1.26 or later (CI also tests Go 1.27) |
+| Language | Go 1.26.6 or later (CI also tests Go 1.27) |
 | Product | Elasticsearch only; OpenSearch is treated as a negative fingerprint |
 
 - [Safety boundary](#safety-boundary)
@@ -42,7 +42,7 @@ Unauthorized scanning, credential guessing, or exploitation is outside the proje
 and may be illegal. Operator rules are in [docs/responsible-use.md](docs/responsible-use.md).
 Vulnerability reporting is in [SECURITY.md](SECURITY.md).
 
-The default assessment path (`garga scan`, `garga fingerprint`, `garga vuln`) is
+The anonymous multi-target path (`garga scan`, `garga fingerprint`, `garga vuln`) is
 non-destructive:
 
 - product HTTP requests are **GET only**, with no request body;
@@ -56,6 +56,8 @@ Credential work is isolated:
 
 - `garga auth-check` verifies **one** explicit credential from stdin;
 - `garga auth-audit` is opt-in, rate-limited, and attempt-limited, with an explicit stdin list;
+- `garga assess` and `garga health` accept at most one explicitly selected credential and never
+  invoke the credential-audit engine;
 - neither command accepts a `--password` flag;
 - YAML configuration and `GARGA_*` variables never hold secrets.
 
@@ -69,12 +71,16 @@ Implemented operator commands:
 | Command | Role |
 |---|---|
 | `garga scan` | GET `/`, fingerprint, GET-only capability discovery, TLS/exposure checks, bundled CVE matching |
+| `garga assess` | Authenticated-capable, deep GET-only security assessment with runtime-aware CVE applicability |
 | `garga health` | Advanced GET-only cluster/node/index health, capacity, performance, configuration, backup, and security assessment |
 | `garga fingerprint` | GET `/` product identity only |
 | `garga vuln` | Signature-only potential CVE matching (bundled corpus; `--signatures DIR` optional) |
 | `garga auth-check` | One credential, `GET /_security/_authenticate` |
 | `garga auth-audit` | Explicit bounded credential audit |
-| `garga report` | Offline JSONL → console/JSON/JSONL/CSV/HTML |
+| `garga report` | Offline JSONL to console, JSON, JSONL, CSV, HTML, SARIF, or CycloneDX VEX |
+| `garga diff` | Offline finding lifecycle and risk regression comparison |
+| `garga evidence` | Deterministic SHA-256 evidence bundles with optional Ed25519 signing |
+| `garga forecast` | Offline, 64 MiB-bounded disk-threshold forecasts from compatible health snapshots |
 | `garga update` | Signed signature-database install and one-generation rollback |
 | `garga version` | Build metadata |
 
@@ -95,7 +101,7 @@ other than Elasticsearch.
 
 ## Requirements
 
-- Go **1.26** or later on a supported Go release line (needed to build from source).
+- Go **1.26.6** or later on a supported Go release line (needed to build from source).
 - GNU Make is optional; equivalent Go commands are listed under [Development](#development).
 - A POSIX-compatible shell if you use `./install.sh` (Linux, macOS, FreeBSD, OpenBSD, NetBSD,
   or a Windows-compatible Unix shell).
@@ -184,7 +190,7 @@ garga scan --file targets.txt --format csv
 garga scan --file - < targets.txt
 ```
 
-Useful flags: `--file`, `--format` (`console`, `json`, `jsonl`, `csv`, `html`), `--config`,
+Useful flags: `--file`, `--format` (`console`, `json`, `jsonl`, `csv`, `html`, `sarif`, `vex`), `--config`,
 `--signatures`, `--no-signatures`, `--no-progress`, `--html-report`, `--insecure`, `--concurrency`,
 `--rate`, `--per-host-rate`, `--max-targets`.
 
@@ -193,7 +199,7 @@ On a terminal, large or slow scans draw a live progress bar on stderr (counters 
 evidence for every finding (`code — summary`, plus observed target, transport, and product
 facts). Regardless of `--format`, every completed scan also writes a timestamped, owner-only
 PDF report (`garga-scan-*.pdf`) to the current directory and prints its path on stderr. The
-document is a penetration-test report (PTES / NIST SP 800-115 / OWASP / CREST structure). It
+document is titled `Test Report` and follows PTES, NIST SP 800-115, OWASP, and CREST structure. It
 includes document control, scope, methodology, risk rating, technical findings with evidence,
 attack scenarios, remediation, and appendices. Pass `--html-report` (or set `output.html_report`
 / `GARGA_OUTPUT_HTML_REPORT`) to also write the matching HTML report. `--format html` stdout
@@ -218,6 +224,25 @@ Default exposure checks (no extra I/O beyond capability discovery):
 
 Details: [docs/scan.md](docs/scan.md), [docs/checks.md](docs/checks.md).
 
+### `garga assess`
+
+Run a deep, single-cluster security assessment with the same bounded GET-only collector as
+`health`. Optional credentials expose authorized node, module/plugin, JDK, realm, and safe
+configuration context. CVE results are classified as `potential` or `applicable`; an unmet known
+prerequisite suppresses that signature. Applicability means the observable prerequisites are
+present, not that exploitation succeeded.
+
+```sh
+garga assess https://es.example.internal:9200
+printf '%s\n' "$ES_PASSWORD" | \
+  garga assess https://es.example.internal:9200 --username elastic --password-stdin
+garga assess https://es.example.internal:9200 --signatures /var/lib/garga/current
+```
+
+The PDF and optional HTML reports include CVSS, EPSS, EPSS percentile, CISA KEV status,
+applicability evidence, and a bounded priority score. Credential transport and output-redaction
+rules are identical to `health`.
+
 ### `garga health`
 
 Assess one Elasticsearch cluster through bounded, read-only APIs. The command collects a
@@ -230,6 +255,7 @@ garga health https://es-prod.example.com --profile production --deep --format te
 garga health https://es-prod.example.com --format json --fail-on high
 garga health https://es-prod.example.com --snapshot-out baseline.json
 garga health https://es-prod.example.com --baseline baseline.json
+garga forecast baseline-1.json baseline-2.json baseline-3.json
 ```
 
 Normal mode avoids the higher-cost ILM, task, data-stream, node-settings, and snapshot collectors.
@@ -307,16 +333,50 @@ Details: [docs/credential-audit.md](docs/credential-audit.md).
 
 ### `garga report`
 
-Offline. Reads JSONL findings (stdin or `--input`) and writes console, JSON, JSONL, CSV, or
-standalone HTML. Invalid records exit `2` without echoing the payload. HTML has no scripts or
-external resources.
+Offline. Reads JSONL findings (stdin or `--input`) and writes console, JSON, JSONL, CSV,
+standalone HTML, SARIF 2.1.0, or CycloneDX 1.6 VEX. Invalid records exit `2` without echoing the
+payload. HTML has no scripts or external resources.
 
 ```sh
 garga scan --format jsonl 192.0.2.10 > findings.jsonl
 garga report --format html --input findings.jsonl > report.html
+garga report --format sarif --input findings.jsonl > report.sarif.json
+garga report --format vex --input findings.jsonl > report.cdx.json
 ```
 
 Details: [docs/reports.md](docs/reports.md).
+
+### `garga diff`
+
+Compare baseline and current JSONL findings by stable finding ID. Results are `new`, `resolved`,
+`unchanged`, `regressed`, or `improved`; severity, applicability, KEV state, and priority score
+participate in risk-change classification.
+
+```sh
+garga diff --baseline before.jsonl --current after.jsonl --format json
+garga diff --baseline before.jsonl --current after.jsonl --fail-on regressed
+```
+
+### `garga evidence`
+
+Package up to 32 report artifacts in a deterministic ZIP with a SHA-256 manifest. An optional
+Ed25519 key signs the exact manifest; verification rejects undeclared, duplicate, oversized,
+traversal, symlink, digest, and signature failures.
+
+```sh
+garga evidence pack --file report.pdf --file findings.sarif.json --output assessment.zip
+garga evidence verify assessment.zip
+```
+
+### `garga forecast`
+
+Analyze 2-64 compatible health baselines without network access. The report uses observed store
+growth, current aggregate disk usage, capacity consistency, and regression fit to estimate the
+85%, 90%, and 95% disk thresholds.
+
+```sh
+garga forecast baseline-1.json baseline-2.json baseline-3.json --format json
+```
 
 ### `garga update`
 
@@ -401,6 +461,8 @@ Machine formats use finding schema `0.1` (pre-release; not the public `1.0` cont
 | `json` | `{"schema_version":"0.1","findings":[...]}` |
 | `csv` | Header plus one row per finding |
 | `html` | Standalone, escaped, no scripts or network resources; exploitable rows highlighted |
+| `sarif` | SARIF 2.1.0 results for code-scanning and security automation |
+| `vex` | CycloneDX 1.6 VEX with target components and applicability state |
 
 Logs are JSON on stderr. Default `warn` does not emit scanner start/finish or per-probe lines.
 Set `GARGA_LOG_LEVEL=info` for the bounded scan summary, or `debug` for per-probe records.
@@ -411,25 +473,26 @@ Credentials, tokens, and authorization material are redacted. See
 
 | Code | Meaning |
 |---:|---|
-| 0 | Success. Findings do not fail `scan` / `fingerprint` / `vuln`. `garga health` also exits 0 when `--fail-on` is unset or the highest finding is below that threshold. |
+| 0 | Success. Findings do not fail `scan` / `fingerprint` / `vuln`. `garga health` and `garga assess` also exit 0 when `--fail-on` is unset or the highest finding is below that threshold. |
 | 1 | Unexpected internal or output failure. |
-| 2 | Invalid CLI, configuration, target input, or signature directory. `garga health` uses the same code for invalid flags, config, targets, credentials, or `--fail-on` values. |
-| 3 | Run finished, but at least one probe failed operationally. |
+| 2 | Invalid CLI, configuration, target input, or signature directory. `garga health` and `garga assess` use the same code for invalid flags, config, targets, credentials, or `--fail-on` values. |
+| 3 | A scan had an operational probe failure, or `diff --fail-on` reached its requested threshold. |
 | 4 | Signature update verification, archive, or validation failure. |
-| 5 | `garga health` collection, connection, authentication, product, or timeout failure. |
-| 10 | `garga health --fail-on`: highest finding is medium/warning. |
-| 11 | `garga health --fail-on`: highest finding is high. |
-| 12 | `garga health --fail-on`: highest finding is critical. |
+| 5 | `garga health` or `garga assess` collection, connection, authentication, product, or timeout failure. |
+| 10 | `garga health --fail-on` or `garga assess --fail-on`: highest finding is medium/warning. |
+| 11 | `garga health --fail-on` or `garga assess --fail-on`: highest finding is high. |
+| 12 | `garga health --fail-on` or `garga assess --fail-on`: highest finding is critical. |
 | 130 | Interrupted |
 
-Health writes the report before a `--fail-on` severity code. Those codes are not reused by other commands.
+Health and assess write the report before a `--fail-on` severity code. Those codes are not reused
+by other commands.
 
 ## Elasticsearch support
 
 | Tier | Lines | Contract |
 |---|---|---|
-| Fully supported | 8.19.x, 9.3.x, 9.4.x | Fingerprint, capability, checks, credentials, signatures, opt-in containers |
-| Legacy detection | 7.17.x, 8.0–8.18, 9.0–9.2 | Fingerprint, version extraction, passive signatures; API coverage is capability-driven |
+| Fully supported | 8.19.x, 9.4.x, 9.5.x | Fingerprint, capability, checks, credentials, signatures, opt-in containers |
+| Legacy detection | 7.17.x, 8.0–8.18, 9.0–9.3 | Fingerprint, version extraction, passive signatures; API coverage is capability-driven |
 | Unsupported | Before 7.17 | May fingerprint as `possible`; no complete check/vuln claim |
 | Negative | OpenSearch | Never treated as an Elasticsearch compatibility line |
 

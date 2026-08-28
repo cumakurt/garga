@@ -14,7 +14,7 @@ or production target details.
 
 ## Development setup
 
-Install Go 1.26 or later, clone the repository, and run:
+Install Go 1.26.6 or later, clone the repository, and run:
 
 ```sh
 ./install.sh --prefix "$HOME/.local"

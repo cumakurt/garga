@@ -13,15 +13,21 @@ import (
 
 func writeScanPDF(output io.Writer, document scanHTMLDocument) error {
 	doc := pdfdoc.New(
-		"Penetration Test Report - Elasticsearch Security Assessment",
+		"Test Report - Elasticsearch Security Assessment",
 		document.Classification+" | "+document.ReportCode,
 		"garga unauthenticated GET-only assessment",
 	)
 	doc.Logo(garga.LogoPNG())
-	doc.Title("Penetration Test Report")
+	doc.Title("Test Report")
 	doc.Subtitle(document.EngagementType)
-	doc.Para(fmt.Sprintf("Report %s  |  version %s  |  generated %s  |  assessor %s", document.ReportCode, document.ReportVersion, formatTimestamp(document.Generated), document.DeveloperName))
-	doc.Para(fmt.Sprintf("Risk posture %s  |  score %d / 100  |  %s", document.Posture, document.Score, document.HeadlineLabel))
+	doc.KV("Report ID", document.ReportCode)
+	doc.KV("Report version", document.ReportVersion)
+	doc.KV("Generated", formatTimestamp(document.Generated))
+	doc.KV("Assessor", document.DeveloperName)
+	doc.KV("Classification", document.Classification)
+	doc.KV("Assessment mode", "Unauthenticated, GET-only, non-destructive")
+	doc.KV("Risk posture", fmt.Sprintf("%s  |  score %d / 100  |  %s", document.Posture, document.Score, document.HeadlineLabel))
+	doc.PageBreak()
 
 	doc.Section("1. Executive summary")
 	doc.Para(document.Briefing)
@@ -90,9 +96,9 @@ func writeScanPDF(output io.Writer, document scanHTMLDocument) error {
 		doc.Para("No scored security findings were emitted for the endpoints that were probed.")
 	}
 	for _, finding := range document.TopRisks {
-		flags := []string(nil)
+		flags := scanPDFFlags(finding)
 		if finding.Exploitable {
-			flags = []string{"EXPLOITABLE"}
+			flags = append(flags, "EXPLOITABLE")
 		}
 		doc.FindingCard(findingNumber(finding.ReportID), finding.ReportID, finding.SeverityClass, finding.Title, flags, compactPDFFields([][]string{
 			{"Asset", finding.Target},
@@ -167,9 +173,9 @@ func writeScanPDF(output io.Writer, document scanHTMLDocument) error {
 }
 
 func writeScanPDFFinding(doc *pdfdoc.Doc, finding scanHTMLFinding) {
-	flags := []string(nil)
+	flags := scanPDFFlags(finding)
 	if finding.Exploitable {
-		flags = []string{"EXPLOITABLE"}
+		flags = append(flags, "EXPLOITABLE")
 	}
 	asset := finding.Target
 	if finding.Product != "" {
@@ -187,6 +193,12 @@ func writeScanPDFFinding(doc *pdfdoc.Doc, finding scanHTMLFinding) {
 		{"Likelihood", finding.Likelihood},
 		{"Confidence", finding.Confidence},
 		{"CVSS / CVE", joinPDFValues(finding.CVSS, finding.CVE)},
+		{"EPSS probability", finding.EPSS},
+		{"EPSS percentile", finding.EPSSPercentile},
+		{"Priority score", finding.PriorityScore},
+		{"Applicability", finding.Applicability},
+		{"Known exploited", scanPDFKnownExploited(finding)},
+		{"Threat data updated", finding.ThreatUpdated},
 		{"OWASP", finding.OWASP},
 		{"CWE", finding.CWE},
 	}
@@ -211,6 +223,27 @@ func writeScanPDFFinding(doc *pdfdoc.Doc, finding scanHTMLFinding) {
 		fields = append(fields, []string{"Exploitable note", finding.ExploitableNote})
 	}
 	doc.FindingCard(findingNumber(finding.ReportID), finding.ReportID, finding.SeverityClass, finding.Title, flags, compactPDFFields(fields))
+}
+
+func scanPDFFlags(finding scanHTMLFinding) []string {
+	flags := make([]string, 0, 2)
+	if finding.Applicability != "" {
+		flags = append(flags, strings.ToUpper(finding.Applicability))
+	}
+	if finding.KnownExploited {
+		flags = append(flags, "CISA KEV")
+	}
+	return flags
+}
+
+func scanPDFKnownExploited(finding scanHTMLFinding) string {
+	if finding.KnownExploited {
+		return "Yes - CISA Known Exploited Vulnerabilities catalog"
+	}
+	if finding.CVE != "" {
+		return "No"
+	}
+	return ""
 }
 
 func compactPDFFields(fields [][]string) [][]string {

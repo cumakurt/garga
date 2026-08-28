@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -195,16 +196,11 @@ func (doc *Doc) table(headers []string, rows [][]string, severityColumn int) {
 	for index, row := range rows {
 		cells := make([]string, len(headers))
 		copy(cells, row)
-		height := doc.tableRowHeight(cells, widths, false)
-		if doc.pdf.GetY()+height > pageBottom() {
-			doc.pdf.AddPage()
-			doc.writeTableHeader(headers, widths)
-		}
 		severity := ""
 		if severityColumn >= 0 && severityColumn < len(cells) {
 			severity = cells[severityColumn]
 		}
-		doc.paintTableRow(cells, widths, height, false, severityColumn, severity, index)
+		doc.writeTableBodyRow(headers, cells, widths, severityColumn, severity, index)
 	}
 	doc.pdf.Ln(2)
 }
@@ -225,7 +221,9 @@ func tableColumnWidths(headers []string) []float64 {
 			weights[index] = 2.4
 		case "domain", "category", "collector", "usage":
 			weights[index] = 2.0
-		case "id", "sev", "severity", "cvss", "status", "count", "expl.", "http", "cost", "highest":
+		case "status":
+			weights[index] = 1.4
+		case "id", "sev", "severity", "cvss", "count", "expl.", "http", "cost", "highest":
 			weights[index] = 0.9
 		case "#", "no.", "field":
 			weights[index] = 0.7
@@ -270,15 +268,61 @@ func (doc *Doc) tableRowHeight(cells []string, widths []float64, header bool) fl
 }
 
 func (doc *Doc) paintTableRow(cells []string, widths []float64, height float64, header bool, severityColumn int, severity string, rowIndex int) {
-	left, _, _, _ := doc.pdf.GetMargins()
-	_, y := doc.pdf.GetXY()
-	x := left
-	washR, washG, washB := severityWash(severity)
+	lines := make([][]string, len(widths))
 	for index, width := range widths {
 		value := ""
 		if index < len(cells) {
 			value = cells[index]
 		}
+		if header {
+			doc.pdf.SetFont("Helvetica", "B", 7)
+		} else {
+			doc.pdf.SetFont("Helvetica", "", 7)
+		}
+		lines[index] = doc.wrap(value, width-1.6)
+	}
+	doc.paintTableRowLines(lines, widths, height, header, severityColumn, severity, rowIndex)
+}
+
+func (doc *Doc) writeTableBodyRow(headers, cells []string, widths []float64, severityColumn int, severity string, rowIndex int) {
+	lines := make([][]string, len(widths))
+	maximumLines := 1
+	for index, width := range widths {
+		value := ""
+		if index < len(cells) {
+			value = cells[index]
+		}
+		doc.pdf.SetFont("Helvetica", "", 7)
+		lines[index] = doc.wrap(value, width-1.6)
+		if len(lines[index]) > maximumLines {
+			maximumLines = len(lines[index])
+		}
+	}
+	for offset := 0; offset < maximumLines; {
+		available := availableTableLines(doc.pdf.GetY())
+		if available < 1 {
+			doc.pdf.AddPage()
+			doc.writeTableHeader(headers, widths)
+			available = availableTableLines(doc.pdf.GetY())
+		}
+		count := minInt(maximumLines-offset, available)
+		chunk := cellLineChunk(lines, offset, count)
+		height := float64(count)*tableLineHeight + 2*tableCellPad
+		doc.paintTableRowLines(chunk, widths, height, false, severityColumn, severity, rowIndex)
+		offset += count
+		if offset < maximumLines {
+			doc.pdf.AddPage()
+			doc.writeTableHeader(headers, widths)
+		}
+	}
+}
+
+func (doc *Doc) paintTableRowLines(lines [][]string, widths []float64, height float64, header bool, severityColumn int, severity string, rowIndex int) {
+	left, _, _, _ := doc.pdf.GetMargins()
+	_, y := doc.pdf.GetXY()
+	x := left
+	washR, washG, washB := severityWash(severity)
+	for index, width := range widths {
 		fill := false
 		doc.pdf.SetTextColor(23, 32, 51)
 		switch {
@@ -310,7 +354,7 @@ func (doc *Doc) paintTableRow(cells []string, widths []float64, height float64, 
 		}
 		doc.pdf.Rect(x, y, width, height, style)
 		cy := y + tableCellPad
-		for _, line := range doc.wrap(value, width-1.6) {
+		for _, line := range lines[index] {
 			doc.pdf.SetXY(x+0.8, cy)
 			doc.pdf.CellFormat(width-1.6, tableLineHeight, line, "", 0, "L", false, 0, "")
 			cy += tableLineHeight
@@ -319,6 +363,23 @@ func (doc *Doc) paintTableRow(cells []string, widths []float64, height float64, 
 	}
 	doc.pdf.SetXY(left, y+height)
 	doc.pdf.SetTextColor(23, 32, 51)
+}
+
+func availableTableLines(y float64) int {
+	return int(math.Floor((pageBottom() - y - 2*tableCellPad) / tableLineHeight))
+}
+
+func cellLineChunk(lines [][]string, offset, count int) [][]string {
+	chunk := make([][]string, len(lines))
+	for index, cellLines := range lines {
+		if offset >= len(cellLines) {
+			chunk[index] = []string{""}
+			continue
+		}
+		end := minInt(len(cellLines), offset+count)
+		chunk[index] = cellLines[offset:end]
+	}
+	return chunk
 }
 
 func pageBottom() float64 {
@@ -408,17 +469,13 @@ func (doc *Doc) FieldTable(rows [][]string) {
 	for _, row := range rows {
 		cells := []string{"", ""}
 		copy(cells, row)
-		height := doc.fieldRowHeight(cells, widths)
-		if doc.pdf.GetY()+height > pageBottom() {
-			doc.pdf.AddPage()
-			doc.writeTableHeader(headers, widths)
-		}
-		doc.paintFieldRow(cells, widths, height)
+		doc.writeFieldRow(headers, cells, widths)
 	}
 }
 
-func (doc *Doc) fieldRowHeight(cells []string, widths []float64) float64 {
-	height := tableLineHeight + 2*tableCellPad
+func (doc *Doc) writeFieldRow(headers, cells []string, widths []float64) {
+	lines := make([][]string, len(widths))
+	maximumLines := 1
 	for index, width := range widths {
 		value := ""
 		if index < len(cells) {
@@ -429,23 +486,39 @@ func (doc *Doc) fieldRowHeight(cells []string, widths []float64) float64 {
 		} else {
 			doc.pdf.SetFont("Helvetica", "", 8)
 		}
-		lines := doc.wrap(value, width-1.6)
-		if needed := float64(len(lines))*tableLineHeight + 2*tableCellPad; needed > height {
-			height = needed
+		lines[index] = doc.wrap(value, width-1.6)
+		if len(lines[index]) > maximumLines {
+			maximumLines = len(lines[index])
 		}
 	}
-	return height
+	for offset := 0; offset < maximumLines; {
+		available := availableTableLines(doc.pdf.GetY())
+		if available < 1 {
+			doc.pdf.AddPage()
+			doc.writeTableHeader(headers, widths)
+			available = availableTableLines(doc.pdf.GetY())
+		}
+		count := minInt(maximumLines-offset, available)
+		chunk := cellLineChunk(lines, offset, count)
+		if offset > 0 && strings.TrimSpace(cells[0]) != "" {
+			doc.pdf.SetFont("Helvetica", "B", 7)
+			chunk[0] = doc.wrap(cells[0], widths[0]-1.6)
+		}
+		height := float64(count)*tableLineHeight + 2*tableCellPad
+		doc.paintFieldRowLines(chunk, widths, height)
+		offset += count
+		if offset < maximumLines {
+			doc.pdf.AddPage()
+			doc.writeTableHeader(headers, widths)
+		}
+	}
 }
 
-func (doc *Doc) paintFieldRow(cells []string, widths []float64, height float64) {
+func (doc *Doc) paintFieldRowLines(lines [][]string, widths []float64, height float64) {
 	left, _, _, _ := doc.pdf.GetMargins()
 	_, y := doc.pdf.GetXY()
 	x := left
 	for index, width := range widths {
-		value := ""
-		if index < len(cells) {
-			value = cells[index]
-		}
 		if index == 0 {
 			doc.pdf.SetFillColor(236, 242, 247)
 			doc.pdf.Rect(x, y, width, height, "DF")
@@ -458,7 +531,7 @@ func (doc *Doc) paintFieldRow(cells []string, widths []float64, height float64) 
 			doc.pdf.SetTextColor(23, 32, 51)
 		}
 		cy := y + tableCellPad
-		for _, line := range doc.wrap(value, width-1.6) {
+		for _, line := range lines[index] {
 			doc.pdf.SetXY(x+0.8, cy)
 			doc.pdf.CellFormat(width-1.6, tableLineHeight, line, "", 0, "L", false, 0, "")
 			cy += tableLineHeight
@@ -469,11 +542,23 @@ func (doc *Doc) paintFieldRow(cells []string, widths []float64, height float64) 
 	doc.pdf.SetTextColor(23, 32, 51)
 }
 
+func minInt(left, right int) int {
+	if left < right {
+		return left
+	}
+	return right
+}
+
 func (doc *Doc) Error() error {
 	if doc.pdf.Err() {
-		return fmt.Errorf("write PDF report: %s", doc.pdf.Error())
+		return fmt.Errorf("write PDF report: %w", doc.pdf.Error())
 	}
 	return nil
+}
+
+// PageBreak starts a new page when the current page contains report content.
+func (doc *Doc) PageBreak() {
+	doc.pdf.AddPage()
 }
 
 func (doc *Doc) Write(output io.Writer) error {

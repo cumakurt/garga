@@ -42,3 +42,7 @@ coverage metadata instead of assuming that absence of a finding proves a check r
 The model deliberately does not infer trends from one snapshot. Accurate rates and forecasts need
 a compatible earlier baseline, and unsupported counter resets are ignored rather than converted
 to misleading negative deltas.
+
+ADR 0025 extends this engine with the explicit `garga assess` command, runtime-aware vulnerability
+evaluation, interoperable artifacts, lifecycle comparison, evidence integrity, and multi-snapshot
+forecasting without changing the `garga health` contract.

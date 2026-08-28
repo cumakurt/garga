@@ -17,10 +17,14 @@ func WriteTimestampedHTML(report healthmodel.Report) (path string, err error) {
 	if timestamp.IsZero() {
 		timestamp = time.Now()
 	}
-	prefix := ".garga-health-" + timestamp.UTC().Format("20060102T150405.000Z") + "-"
+	kind := "health"
+	if report.Metadata.AssessmentMode {
+		kind = "assessment"
+	}
+	prefix := ".garga-" + kind + "-" + timestamp.UTC().Format("20060102T150405.000Z") + "-"
 	temporary, err := os.CreateTemp(".", prefix+"*.tmp")
 	if err != nil {
-		return "", fmt.Errorf("create timestamped health report: %w", err)
+		return "", fmt.Errorf("create timestamped %s report: %w", kind, err)
 	}
 	temporaryPath := temporary.Name()
 	defer func() {

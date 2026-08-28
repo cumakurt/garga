@@ -6,8 +6,24 @@ All notable changes to garga are documented in this file.
 
 ### Added
 
+- `garga assess`, an authenticated-capable GET-only security assessment that combines the health
+  engine with version, node JDK, module/plugin, realm, safe-setting, and signature applicability
+  evidence. Runtime prerequisites distinguish `applicable` findings from version-only
+  `potential` findings without sending exploit payloads.
+- CISA KEV and FIRST EPSS/percentile metadata, threat-data dates, and bounded priority scores in
+  signatures, finding schemas, CSV, HTML, terminal, and PDF reporting.
+- SARIF 2.1.0 and CycloneDX 1.6 VEX output for `scan`, `vuln`, and offline `report` workflows.
+- `garga diff` for deterministic new/resolved/unchanged/regressed/improved lifecycle comparison,
+  including CI failure thresholds for new, regressed, or any changed findings.
+- `garga evidence pack` and `garga evidence verify` for deterministic SHA-256 assessment bundles
+  with optional Ed25519 signing and bounded archive verification.
+- `garga forecast` for offline 85/90/95 percent disk-threshold projections from 2-64 compatible
+  health baselines, with regression fit and explicit confidence.
+- Maintainer `advisory-sync` and `signature-bundle` tools for bounded official-feed auditing,
+  reviewable candidate generation, corpus enrichment, and deterministic signed update publishing.
+- Cross-node Elasticsearch, JDK, and installed module/plugin drift analysis.
 - `garga health` advanced read-only Elasticsearch assessment with centralized collection and
-  normalization, 37 version-aware health checkers, weighted root-cause scoring, correlation,
+  normalization, 38 version-aware health checkers, weighted root-cause scoring, correlation,
   partial-failure coverage, scanner telemetry, terminal/JSON/HTML/Markdown reports, configurable
   profiles and thresholds, optional deep collection, and secret-free baseline/delta snapshots.
 - Every completed health assessment writes a timestamped, owner-only standalone PDF artifact
@@ -15,7 +31,7 @@ All notable changes to garga are documented in this file.
   evidence, correlations, remediation, coverage, and telemetry. `--html-report` (or
   `output.html_report` / `GARGA_OUTPUT_HTML_REPORT`) also writes the matching HTML document.
 - Every completed `garga scan` writes a timestamped, owner-only standalone PDF artifact
-  (`garga-scan-*.pdf`) in the current directory. The artifact is a penetration-test report
+  (`garga-scan-*.pdf`) in the current directory. The artifact is titled `Test Report` and
   structured to PTES, NIST SP 800-115, OWASP, and CREST (document control, disclaimer, scope,
   methodology, risk rating, technical findings with evidence, attack scenarios, remediation,
   and appendices). `--html-report` also writes the matching HTML report. Stdout `--format` is
@@ -24,8 +40,8 @@ All notable changes to garga are documented in this file.
 - Standalone health and scan HTML reports include clickable developer LinkedIn and GitHub
   links in the footer. PDF artifacts include the same identity as plain-text URLs.
 
-- Cross-platform release archives, SHA-256 checksums, SPDX SBOMs, and an optional GPG signature
-  of `SHA256SUMS`.
+- Cross-platform release archives, SHA-256 checksums, SPDX 2.3 SBOMs with explicit main-package
+  relationships, and an optional GPG signature of `SHA256SUMS`.
 - Responsible-use guidance and a documented binary/signature rollback procedure.
 - `garga scan` for bounded, GET-only Elasticsearch assessments with streaming reports.
 - `garga fingerprint` for GET `/` product identity without exposure checks.
@@ -36,6 +52,9 @@ All notable changes to garga are documented in this file.
 - Bundled Elasticsearch CVE corpus (NVD CPE, OSV Maven, and Elastic security announcements as of
   2026-08-27). `garga scan` and `garga vuln` load it by default. `--signatures DIR` replaces it;
   `garga scan --no-signatures` skips CVE matching.
+- Official Elasticsearch advisory coverage now includes the conditional Log4j2 message-lookup
+  issues, JWT realm denial of service, and ingest-attachment XXE records that were absent from
+  the initial bundled corpus.
 - Live TTY progress bar on stderr for `garga scan`, `garga vuln`, and `garga fingerprint`.
   `--no-progress` disables it. The bar uses probe counters only and does not print hosts or URLs.
 - CSV columns `cvss` and `description`. CSV/JSON/JSONL/HTML also print a human detection summary
@@ -45,6 +64,13 @@ All notable changes to garga are documented in this file.
 
 ### Changed
 
+- The minimum build toolchain is Go 1.26.6 so release binaries include the standard-library
+  security fixes required by `govulncheck`.
+- Supported container lanes now track security-updated Elasticsearch 8.19.20 and 9.4.5 plus the
+  current 9.5.2 release.
+- PDF reports use the concise `Test Report` title, dedicated cover pages, format-neutral
+  methodology text, threat-priority fields, clearer evidence hierarchy, and wider status columns
+  so long labels remain readable.
 - `garga health` uses dedicated process codes: invalid flags, config, targets, and `--fail-on`
   values return 2; collection, connection, authentication, product, and timeout failures return 5;
   `--fail-on` warning/high/critical return 10/11/12. Those codes no longer overlay 1/2/3/4 used by

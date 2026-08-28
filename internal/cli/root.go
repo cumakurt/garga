@@ -100,12 +100,16 @@ func NewRootCommand(buildInfo BuildInfo) *cobra.Command {
 	cmd.CompletionOptions.DisableDefaultCmd = true
 	normalized := buildInfo.normalized()
 	cmd.AddCommand(newScanCommand(normalized))
+	cmd.AddCommand(newAssessCommand(normalized))
 	cmd.AddCommand(newFingerprintCommand(normalized))
 	cmd.AddCommand(newAuthCheckCommand(normalized))
 	cmd.AddCommand(newAuthAuditCommand(normalized))
 	cmd.AddCommand(newVulnCommand(normalized))
 	cmd.AddCommand(newHealthCommand(normalized))
 	cmd.AddCommand(newReportCommand())
+	cmd.AddCommand(newDiffCommand())
+	cmd.AddCommand(newEvidenceCommand())
+	cmd.AddCommand(newForecastCommand())
 	cmd.AddCommand(newUpdateCommand(normalized))
 	cmd.AddCommand(newVersionCommand(normalized))
 

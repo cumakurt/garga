@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/cumakurt/garga/internal/model"
 )
@@ -286,6 +287,30 @@ func TestScanHeadlineShowsCriticalCountInsteadOfCollapsedScore(t *testing.T) {
 	}
 	if postureClass(posture) != "CRITICAL" {
 		t.Fatalf("posture class = %q", postureClass(posture))
+	}
+}
+
+func TestScanFindingViewIncludesThreatPrioritization(t *testing.T) {
+	t.Parallel()
+
+	epss := 0.99999
+	percentile := 1.0
+	priority := 10.0
+	updated := time.Date(2026, 8, 27, 0, 0, 0, 0, time.UTC)
+	view := scanFindingView(model.Finding{
+		CheckID: "garga.vuln.cve-2021-44228", CVE: []string{"CVE-2021-44228"}, Severity: model.SeverityCritical,
+		EPSS: &epss, EPSSPercentile: &percentile, PriorityScore: &priority, KnownExploited: true,
+		Applicability: "applicable", ThreatUpdated: &updated,
+	})
+	if view.EPSS != "99.999%" || view.EPSSPercentile != "100.000%" || view.PriorityScore != "10.00 / 10" {
+		t.Fatalf("threat scores = %#v", view)
+	}
+	if !view.KnownExploited || view.Applicability != "applicable" || view.ThreatUpdated != "2026-08-27" {
+		t.Fatalf("threat state = %#v", view)
+	}
+	flags := scanPDFFlags(view)
+	if strings.Join(flags, ",") != "APPLICABLE,CISA KEV" {
+		t.Fatalf("PDF flags = %#v", flags)
 	}
 }
 

@@ -77,7 +77,7 @@ certificate verification only.
 		},
 	}
 	cmd.Flags().StringVar(&filePath, "file", "", "line-oriented target file, or - for stdin")
-	cmd.Flags().StringVar(&format, "format", "", "output format: console, json, jsonl, csv, or html (default console)")
+	cmd.Flags().StringVar(&format, "format", "", "output format: console, json, jsonl, csv, html, sarif, or vex (default console)")
 	cmd.Flags().StringVar(&configPath, "config", "", "optional configuration file")
 	cmd.Flags().StringVar(&signatureDir, "signatures", "", "YAML signature directory (default: bundled Elasticsearch CVE corpus)")
 	cmd.Flags().BoolVar(&insecure, "insecure", false, "skip TLS certificate verification")

@@ -25,7 +25,7 @@ func requestPlan() []requestSpec {
 		{Name: "cluster_health", Path: "/_cluster/health", Cost: CostLow},
 		{Name: "cluster_stats", Path: "/_cluster/stats", Cost: CostLow},
 		{Name: "cluster_settings", Path: "/_cluster/settings", Query: values("include_defaults", "true", "flat_settings", "true"), Cost: CostLow},
-		{Name: "nodes_info", Path: "/_nodes/_all/os,process,jvm", Cost: CostLow},
+		{Name: "nodes_info", Path: "/_nodes/_all/os,process,jvm,plugins", Cost: CostLow},
 		{Name: "nodes_stats", Path: "/_nodes/stats/jvm,os,process,fs,thread_pool,breaker,indices,indexing_pressure", Cost: CostMedium, MinMajor: 7},
 		{Name: "indices", Path: "/_cat/indices", Query: values("format", "json", "bytes", "b", "h", "health,status,index,uuid,pri,rep,docs.count,docs.deleted,store.size,pri.store.size,creation.date.string"), Cost: CostMedium},
 		{Name: "shards", Path: "/_cat/shards", Query: values("format", "json", "bytes", "b", "h", "index,shard,prirep,state,docs,store,ip,node,unassigned.reason,unassigned.at"), Cost: CostMedium},

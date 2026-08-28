@@ -24,6 +24,7 @@ const (
 	clusterReadyWait  = 2*time.Minute + 30*time.Second
 	passwordResetWait = 20 * time.Second
 	readyPollInterval = 500 * time.Millisecond
+	readySuccesses    = 2
 	elasticsearchHeap = "-Xms512m -Xmx512m"
 )
 
@@ -210,14 +211,21 @@ func waitHealthy(t *testing.T, cluster *esCluster) error {
 	deadline := started.Add(clusterReadyWait)
 	var lastReset time.Time
 	var last error
+	consecutiveReady := 0
 	for time.Now().Before(deadline) {
 		if !containerRunning(cluster.Name) {
 			return fmt.Errorf("container %s exited before becoming ready", cluster.Name)
 		}
 		err := probeReady(cluster)
 		if err == nil {
-			return nil
+			consecutiveReady++
+			if consecutiveReady >= readySuccesses {
+				return nil
+			}
+			time.Sleep(readyPollInterval)
+			continue
 		}
+		consecutiveReady = 0
 		last = err
 		if cluster.Lane.Auth && time.Since(started) >= passwordResetWait &&
 			(lastReset.IsZero() || time.Since(lastReset) >= passwordResetWait) {
@@ -329,9 +337,8 @@ func chownCertsForElasticsearch(dir string) error {
 	return first
 }
 
-func clusterStatusReady(body []byte) bool {
-	return bytes.Contains(body, []byte(`"status":"green"`)) ||
-		bytes.Contains(body, []byte(`"status":"yellow"`))
+func clusterStatusGreen(body []byte) bool {
+	return bytes.Contains(body, []byte(`"status":"green"`))
 }
 
 func resetElasticPassword(cluster *esCluster) (string, error) {
