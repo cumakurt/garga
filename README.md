@@ -645,8 +645,6 @@ Optional:
 | `make integration` | Elasticsearch containers; may pull `docker.elastic.co` images |
 | `make release VERSION=vX.Y.Z` | Cross-platform archives, SBOM, `SHA256SUMS` |
 
-Roadmap and acceptance criteria: [garga-MASTER-PLAN.md](garga-MASTER-PLAN.md).
-
 ## Documentation
 
 | Topic | Document |
