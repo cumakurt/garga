@@ -14,7 +14,8 @@ it does not run unless the operator invokes this command with an explicit stdin 
 - The run stops on the first valid credential, when the security API is unavailable, when the
   ceiling is reached, or when the context is cancelled.
 
-The `scan` command has no call path to this engine.
+The `scan` command has no call path to this engine. Technique-specific stuffing, spraying,
+brute-force, and dictionary assessments belong in `garga auth-detect`.
 
 ## Input
 

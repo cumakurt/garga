@@ -47,8 +47,10 @@ Secret material is not copied into errors, logs, or the result line. The credent
 formats as `credential:basic` or `credential:api_key`. Response bodies are discarded after the
 status code is classified.
 
-Trying more than one credential requires the isolated `garga auth-audit` command documented in
-[credential-audit.md](credential-audit.md). That path is never invoked from a normal scan.
+Trying more than one credential requires an isolated command. `garga auth-audit` verifies a short
+explicit list and is documented in [credential-audit.md](credential-audit.md). Technique-specific
+stuffing, spraying, brute-force, and dictionary assessments use `garga auth-detect`, documented in
+[credential-detect.md](credential-detect.md). Those paths are never invoked from a normal scan.
 
 ## Health assessment credentials
 

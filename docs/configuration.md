@@ -57,10 +57,11 @@ for example `500ms`, `2s`, or `1m30s`.
 ## Secret boundary
 
 This general configuration model deliberately contains no credentials, authorization headers,
-API keys, or passwords. Authentication input uses `garga auth-check` and `garga auth-audit` with
-stdin secrets as documented in [credentials.md](credentials.md) and
-[credential-audit.md](credential-audit.md). Scanner rate settings do not apply to credential
-audit. `garga scan`, `garga fingerprint`, and `garga vuln` do not accept credentials. `garga health`
+API keys, or passwords. Authentication input uses `garga auth-check`, `garga auth-audit`, and
+`garga auth-detect` with stdin or local list-file secrets as documented in
+[credentials.md](credentials.md), [credential-audit.md](credential-audit.md), and
+[credential-detect.md](credential-detect.md). Scanner rate settings do not apply to credential
+audit or credential detection. `garga scan`, `garga fingerprint`, and `garga vuln` do not accept credentials. `garga health`
 and `garga assess` keep authentication outside this configuration model: stdin is preferred, while the dedicated
 `ESHEALTH_USERNAME`, `ESHEALTH_PASSWORD`, `ESHEALTH_API_KEY`, and `ESHEALTH_BEARER_TOKEN`
 variables exist for automation. Those variables are never included in configuration formatting,

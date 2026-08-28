@@ -10,9 +10,10 @@ import (
 )
 
 const (
-	maxUsernameBytes = 256
-	maxSecretBytes   = 4096
-	redacted         = "[redacted]"
+	maxUsernameBytes    = 256
+	maxSecretBytes      = 4096
+	minRedactTokenBytes = 4
+	redacted            = "[redacted]"
 )
 
 // Kind identifies one explicit authentication mechanism.

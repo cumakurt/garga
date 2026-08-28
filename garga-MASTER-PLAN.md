@@ -79,6 +79,7 @@ Work Package 5.1 added the capability-gated check registry and TLS/public-exposu
 Work Package 5.2 added GET-only anonymous access classification (`none`/`metadata`/`read`/`write`/`admin`).
 Work Package 6.1 added explicit single-credential verification with stdin secrets and centralized redaction.
 Work Package 6.2 added the isolated, opt-in credential audit engine with rate and attempt ceilings.
+Work Package 6.3 added `garga auth-detect` for bounded stuffing, spraying, brute-force, and dictionary assessments.
 Work Package 7.1 added YAML vulnerability signatures and a semantic version matcher with potential-only detection.
 Work Package 7.2 added capability-aware signature evaluation and finding conversion through the check registry.
 Work Package 8.1 added streaming console, JSON, JSONL, CSV, and standalone HTML reporters with schema `0.1`.
@@ -144,6 +145,9 @@ internal/cli ---> internal/credential ---> internal/transport
 internal/cli ---> internal/credential/audit ---> internal/credential
                                            ---> internal/ratelimit
                                            ---> internal/transport
+internal/cli ---> internal/credential/detect ---> internal/credential
+                                            ---> internal/ratelimit
+                                            ---> internal/transport
 internal/cli ---> internal/report
 internal/cli ---> internal/update ---> internal/vulnerability
                                   ---> internal/transport
@@ -171,6 +175,7 @@ Dependency rules:
 - `internal/credential` is used by explicit `auth-check` verification and optional `garga health`
   or `garga assess` authentication, not by scanner orchestration.
 - `internal/credential/audit` is used only by explicit `auth-audit` and has no call path from scan.
+- `internal/credential/detect` is used only by explicit `auth-detect` and has no call path from scan.
 - `internal/vulnerability` loads signatures, matches versions, and converts potential findings.
   It does not confirm exploits from version evidence.
 - `internal/update` fetches and activates signed signature bundles. It is not on the scan path.
@@ -287,6 +292,7 @@ garga
 ├── assess
 ├── auth-check
 ├── auth-audit
+├── auth-detect
 ├── vuln
 ├── update
 ├── report

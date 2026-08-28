@@ -6,6 +6,12 @@ All notable changes to garga are documented in this file.
 
 ### Added
 
+- `garga auth-detect` for bounded credential stuffing, password spraying, brute-force, and
+  dictionary assessments against one Elasticsearch target. Modes are explicit, rate-limited, and
+  isolated from the scan path. Secrets come from stdin or local list files (`--wordlist`,
+  `--users-file`, `--credentials-file`). Brute-force may generate a bounded charset product.
+  Stuffing accepts leak-style `user:pass` pairs. Spraying uses a password-outer loop and optional
+  `--spray-delay`.
 - `garga assess`, an authenticated-capable GET-only security assessment that combines the health
   engine with version, node JDK, module/plugin, realm, safe-setting, and signature applicability
   evidence. Runtime prerequisites distinguish `applicable` findings from version-only

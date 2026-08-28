@@ -104,6 +104,7 @@ func NewRootCommand(buildInfo BuildInfo) *cobra.Command {
 	cmd.AddCommand(newFingerprintCommand(normalized))
 	cmd.AddCommand(newAuthCheckCommand(normalized))
 	cmd.AddCommand(newAuthAuditCommand(normalized))
+	cmd.AddCommand(newAuthDetectCommand(normalized))
 	cmd.AddCommand(newVulnCommand(normalized))
 	cmd.AddCommand(newHealthCommand(normalized))
 	cmd.AddCommand(newReportCommand())

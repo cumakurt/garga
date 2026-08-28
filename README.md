@@ -56,9 +56,11 @@ Credential work is isolated:
 
 - `garga auth-check` verifies **one** explicit credential from stdin;
 - `garga auth-audit` is opt-in, rate-limited, and attempt-limited, with an explicit stdin list;
+- `garga auth-detect` is a separate opt-in mode for bounded stuffing, spraying, brute-force, and
+  dictionary assessments with stdin or local list-file secrets;
 - `garga assess` and `garga health` accept at most one explicitly selected credential and never
-  invoke the credential-audit engine;
-- neither command accepts a `--password` flag;
+  invoke the credential-audit or credential-detection engines;
+- none of these commands accepts a `--password` flag;
 - YAML configuration and `GARGA_*` variables never hold secrets.
 
 Authenticate uses Elasticsearch `GET /_security/_authenticate`.
@@ -77,6 +79,7 @@ Implemented operator commands:
 | `garga vuln` | Signature-only potential CVE matching (bundled corpus; `--signatures DIR` optional) |
 | `garga auth-check` | One credential, `GET /_security/_authenticate` |
 | `garga auth-audit` | Explicit bounded credential audit |
+| `garga auth-detect` | Explicit bounded credential stuffing, spraying, brute-force, and dictionary detection |
 | `garga report` | Offline JSONL to console, JSON, JSONL, CSV, HTML, SARIF, or CycloneDX VEX |
 | `garga diff` | Offline finding lifecycle and risk regression comparison |
 | `garga evidence` | Deterministic SHA-256 evidence bundles with optional Ed25519 signing |
@@ -318,9 +321,11 @@ Passwords and API keys must come from stdin. Output is a secret-free status line
 
 ### `garga auth-audit`
 
-Isolated opt-in audit. Not invoked by `scan`. Default rate is 1 request/second. Default
-per-host ceiling is 5 attempts (`--max-attempts` at most 20). At most 32 credentials. Stops on
-the first valid credential, missing security API, ceiling, or cancellation.
+Isolated opt-in audit for a short explicit credential list. Not invoked by `scan`. Default rate
+is 1 request/second. Default per-host ceiling is 5 attempts (`--max-attempts` at most 20). At
+most 32 credentials. Stops on the first valid credential, missing security API, ceiling, or
+cancellation. For technique-specific stuffing, spraying, brute-force, or dictionary assessments,
+use `garga auth-detect` instead.
 
 ```sh
 garga auth-audit https://es.example.internal:9200 --credentials-stdin <<'EOF'
@@ -330,6 +335,37 @@ EOF
 ```
 
 Details: [docs/credential-audit.md](docs/credential-audit.md).
+
+### `garga auth-detect`
+
+Isolated opt-in credential detection. Not invoked by `scan`. Default rate is 1 request/second.
+Default per-host ceiling is 100 attempts (`--max-attempts` at most 1000). Secrets come from
+stdin or a local list file. There is no `--password` flag.
+
+| Mode | Technique | Input |
+|---|---|---|
+| `stuffing` | Credential stuffing | `--credentials-stdin` or `--credentials-file` |
+| `spraying` | Password spraying | `--spray-input-stdin`, or `--users-file` plus a password list |
+| `brute-force` | Brute force | `--username` with a password list or bounded `--charset` |
+| `dictionary` | Dictionary attack | `--username` with `--wordlist` or `--passwords-stdin` |
+
+```sh
+garga auth-detect https://es.example.internal:9200 --mode stuffing --credentials-stdin <<'EOF'
+basic elastic example-password
+admin:admin123
+EOF
+
+garga auth-detect https://es.example.internal:9200 --mode spraying \
+  --users-file users.txt --passwords-file passwords.txt --spray-delay 5s
+
+garga auth-detect https://es.example.internal:9200 --mode brute-force \
+  --username elastic --charset digits --min-length 1 --max-length 2
+
+garga auth-detect https://es.example.internal:9200 --mode dictionary \
+  --username elastic --wordlist wordlist.txt
+```
+
+Details: [docs/credential-detect.md](docs/credential-detect.md).
 
 ### `garga report`
 
@@ -447,7 +483,7 @@ document, unknown fields rejected.
 | `output.format` | `GARGA_OUTPUT_FORMAT` | `console` |
 | `logging.level` | `GARGA_LOG_LEVEL` | `warn` |
 
-Credential audit does not use scanner rate settings. Full limits and validation:
+Credential audit and detection do not use scanner rate settings. Full limits and validation:
 [docs/configuration.md](docs/configuration.md).
 
 ## Reports and logs
@@ -541,6 +577,7 @@ Roadmap and acceptance criteria: [garga-MASTER-PLAN.md](garga-MASTER-PLAN.md).
 | Checks and findings | [docs/checks.md](docs/checks.md) |
 | Credentials | [docs/credentials.md](docs/credentials.md) |
 | Credential audit | [docs/credential-audit.md](docs/credential-audit.md) |
+| Credential detection | [docs/credential-detect.md](docs/credential-detect.md) |
 | Signatures | [docs/signatures.md](docs/signatures.md) |
 | Signature updates | [docs/signature-updates.md](docs/signature-updates.md) |
 | Reports | [docs/reports.md](docs/reports.md) |

@@ -28,6 +28,31 @@ func TestRedactRemovesPasswordAndHeader(t *testing.T) {
 	}
 }
 
+func TestRedactSkipsShortSubstringTokens(t *testing.T) {
+	t.Parallel()
+
+	secret, err := NewBasic("elastic", []byte("ab"))
+	if err != nil {
+		t.Fatalf("NewBasic() error = %v", err)
+	}
+	header, err := secret.AuthorizationHeader()
+	if err != nil {
+		t.Fatalf("AuthorizationHeader() error = %v", err)
+	}
+
+	line := "auth-detect: mode=brute-force attempt=1 status=401"
+	got := Redact(line, secret)
+	if got != line {
+		t.Fatalf("Redact() mangled a report line: %q", got)
+	}
+	if Redact(header, secret) == header {
+		t.Fatal("Redact() left the authorization header in place")
+	}
+	if Redact("ab", secret) != redacted {
+		t.Fatal("Redact() did not replace an exact short secret")
+	}
+}
+
 func TestRedactErrorUnwrapsCause(t *testing.T) {
 	t.Parallel()
 

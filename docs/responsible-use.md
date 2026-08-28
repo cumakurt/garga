@@ -22,10 +22,12 @@ The default assessment path is read-only. garga must not:
 
 - exploit vulnerabilities or attempt remote code execution;
 - create, update, or delete indices, documents, users, or cluster settings;
-- spray credentials unless an operator explicitly runs `garga auth-audit` with a stdin list.
+- spray credentials unless an operator explicitly runs `garga auth-audit` or `garga auth-detect`
+  with an explicit stdin list or local list file.
 
 `garga auth-check` verifies one credential. `garga auth-audit` is isolated, rate-limited, and
-attempt-limited. Neither command accepts a `--password` flag.
+attempt-limited for short explicit lists. `garga auth-detect` adds bounded stuffing, spraying,
+brute-force, and dictionary modes. None of these commands accepts a `--password` flag.
 
 `garga scan` and `garga vuln` remain bound to the same GET-only, non-state-changing contract.
 They do not send credentials.

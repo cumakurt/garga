@@ -56,6 +56,9 @@ func TestExecuteHelp(t *testing.T) {
 	if !strings.Contains(stdout.String(), "auth-audit") {
 		t.Errorf("help output %q does not list auth-audit command", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "auth-detect") {
+		t.Errorf("help output %q does not list auth-detect command", stdout.String())
+	}
 	if !strings.Contains(stdout.String(), "report") {
 		t.Errorf("help output %q does not list report command", stdout.String())
 	}

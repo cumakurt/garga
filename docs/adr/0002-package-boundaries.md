@@ -28,6 +28,8 @@ Application code lives under `internal/`; garga does not expose a library API in
   `garga auth-check` uses Basic Auth or API key with `capability.PathAuthenticate`. `garga health`
   may attach the same secret type to GET collectors.
 - `internal/credential/audit` is the isolated opt-in credential audit engine and is not used by scan.
+- `internal/credential/detect` is the isolated opt-in credential detection engine for stuffing,
+  spraying, brute-force, and dictionary assessments and is not used by scan.
 - `internal/vulnerability` owns signature loading, version matching, and potential finding conversion.
 - `internal/advisory` audits official sources and prepares reviewable signature corpus updates.
 - `internal/update` fetches, verifies, stages, and atomically activates signed signature bundles;
