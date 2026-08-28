@@ -13,11 +13,17 @@ REQUIRED_GO_VERSION=""
 INSTALLED_GO_VERSION=""
 NEED_GO=0
 NEED_GIT=0
+USE_LOCAL_TOOLCHAIN=1
 FORCE_REBUILD=0
 SHOW_HELP=0
 TEMP_BINARY=""
+GO_FETCH_DIR=""
 PREFIX="${PREFIX:-/usr/local}"
 DESTDIR="${DESTDIR:-}"
+# Go 1.21 introduced GOTOOLCHAIN=auto, which can download the compiler named in go.mod.
+MIN_TOOLCHAIN_DOWNLOAD_GO_VERSION="1.21.0"
+GO_DOWNLOAD_CATALOG_URL="https://go.dev/dl/?mode=json&include=all"
+GO_DOWNLOAD_FILE_BASE_URL="https://go.dev/dl"
 
 if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
 	COLOR_BLUE=$'\033[34m'
@@ -54,6 +60,9 @@ cleanup() {
 	if [[ -n "${TEMP_BINARY}" && -e "${TEMP_BINARY}" ]]; then
 		rm -f -- "${TEMP_BINARY}"
 	fi
+	if [[ -n "${GO_FETCH_DIR}" && -d "${GO_FETCH_DIR}" ]]; then
+		rm -rf -- "${GO_FETCH_DIR}"
+	fi
 }
 
 trap cleanup EXIT INT TERM
@@ -74,6 +83,7 @@ Options:
 Environment:
   PREFIX             Same as --prefix (default /usr/local).
   DESTDIR            Optional staging root prepended to PREFIX.
+  GARGA_GO_CACHE     Directory for a downloaded official Go toolchain.
 
 This script does not run garga commands. After installation, use:
   garga --help
@@ -208,6 +218,211 @@ go_version_is_supported() {
 	((current_patch >= required_patch))
 }
 
+local_go_version() {
+	GOTOOLCHAIN=local go env GOVERSION 2>/dev/null || true
+}
+
+go_is_gccgo() {
+	local report
+	report="$(go version 2>/dev/null || true)"
+	go_version_report_is_gccgo "${report}"
+}
+
+go_version_report_is_gccgo() {
+	[[ "$1" == *gccgo* ]]
+}
+
+# Distro packages often trail go.mod by a patch. Official Go 1.21+ can fetch the
+# matching toolchain. gccgo cannot.
+go_can_download_toolchain() {
+	go_version_is_supported "$1" "${MIN_TOOLCHAIN_DOWNLOAD_GO_VERSION}"
+}
+
+select_go_toolchain() {
+	USE_LOCAL_TOOLCHAIN=0
+	INSTALLED_GO_VERSION="$(local_go_version)"
+	if go_is_gccgo; then
+		return 1
+	fi
+	if go_version_is_supported "${INSTALLED_GO_VERSION}" "${REQUIRED_GO_VERSION}"; then
+		USE_LOCAL_TOOLCHAIN=1
+		return 0
+	fi
+	if go_can_download_toolchain "${INSTALLED_GO_VERSION}"; then
+		return 0
+	fi
+	return 1
+}
+
+system_go_is_usable() {
+	command -v go >/dev/null 2>&1 && select_go_toolchain
+}
+
+normalize_go_os() {
+	case "$1" in
+	Linux | linux)
+		printf 'linux\n'
+		;;
+	Darwin | darwin)
+		printf 'darwin\n'
+		;;
+	FreeBSD | freebsd)
+		printf 'freebsd\n'
+		;;
+	OpenBSD | openbsd)
+		printf 'openbsd\n'
+		;;
+	NetBSD | netbsd)
+		printf 'netbsd\n'
+		;;
+	*)
+		return 1
+		;;
+	esac
+}
+
+normalize_go_arch() {
+	case "$1" in
+	x86_64 | amd64)
+		printf 'amd64\n'
+		;;
+	aarch64 | arm64)
+		printf 'arm64\n'
+		;;
+	armv7l | armv6l | arm)
+		printf 'armv6l\n'
+		;;
+	i386 | i686 | i86pc)
+		printf '386\n'
+		;;
+	ppc64le)
+		printf 'ppc64le\n'
+		;;
+	s390x)
+		printf 's390x\n'
+		;;
+	riscv64)
+		printf 'riscv64\n'
+		;;
+	loongarch64 | loong64)
+		printf 'loong64\n'
+		;;
+	*)
+		return 1
+		;;
+	esac
+}
+
+go_archive_filename() {
+	printf 'go%s.%s-%s.tar.gz\n' "$1" "$2" "$3"
+}
+
+official_go_root() {
+	local cache_home
+	if [[ -n "${GARGA_GO_CACHE:-}" ]]; then
+		printf '%s\n' "${GARGA_GO_CACHE%/}"
+		return
+	fi
+	if [[ -n "${XDG_CACHE_HOME:-}" ]]; then
+		cache_home="${XDG_CACHE_HOME}"
+	elif [[ -n "${HOME:-}" ]]; then
+		cache_home="${HOME}/.cache"
+	else
+		cache_home="${PROJECT_ROOT}/.cache"
+	fi
+	printf '%s\n' "${cache_home%/}/garga/go/go${REQUIRED_GO_VERSION}"
+}
+
+have_downloader() {
+	command -v curl >/dev/null 2>&1 || command -v wget >/dev/null 2>&1 || command -v fetch >/dev/null 2>&1
+}
+
+download_url() {
+	local url="$1"
+	local dest="$2"
+
+	if command -v curl >/dev/null 2>&1; then
+		curl -fsSL --connect-timeout 30 --max-time 600 --retry 2 --retry-delay 2 -o "${dest}" "${url}"
+		return
+	fi
+	if command -v wget >/dev/null 2>&1; then
+		wget -q -T 30 -t 3 -O "${dest}" "${url}"
+		return
+	fi
+	if command -v fetch >/dev/null 2>&1; then
+		fetch -T 30 -o "${dest}" "${url}"
+		return
+	fi
+	return 1
+}
+
+install_brew_packages() {
+	local brew_packages=()
+	local pkg
+	for pkg in "$@"; do
+		if [[ "${pkg}" == "ca-certificates" ]]; then
+			continue
+		fi
+		brew_packages+=("${pkg}")
+	done
+	if ((${#brew_packages[@]} == 0)); then
+		return 0
+	fi
+	info "Installing missing dependencies with Homebrew: ${brew_packages[*]}"
+	brew install "${brew_packages[@]}"
+}
+
+file_sha256() {
+	if command -v sha256sum >/dev/null 2>&1; then
+		sha256sum "$1" | awk '{print $1}'
+		return
+	fi
+	if command -v shasum >/dev/null 2>&1; then
+		shasum -a 256 "$1" | awk '{print $1}'
+		return
+	fi
+	if command -v openssl >/dev/null 2>&1; then
+		openssl dgst -sha256 "$1" | awk '{print $NF}'
+		return
+	fi
+	return 1
+}
+
+go_archive_sha256() {
+	local catalog="$1"
+	local filename="$2"
+	local digest
+
+	digest="$(awk -v want="${filename}" '
+		/"filename"/ {
+			name = $0
+			sub(/.*"filename":[[:space:]]*"/, "", name)
+			sub(/".*/, "", name)
+			keep = (name == want)
+		}
+		keep && /"sha256"/ {
+			sha = $0
+			sub(/.*"sha256":[[:space:]]*"/, "", sha)
+			sub(/".*/, "", sha)
+			print sha
+			exit
+		}
+	' "${catalog}")"
+	if [[ -z "${digest}" ]]; then
+		return 1
+	fi
+	printf '%s\n' "${digest}"
+}
+
+checksums_match() {
+	local actual="$1"
+	local expected="$2"
+	local actual_lc expected_lc
+	actual_lc="$(printf '%s' "${actual}" | tr '[:upper:]' '[:lower:]')"
+	expected_lc="$(printf '%s' "${expected}" | tr '[:upper:]' '[:lower:]')"
+	[[ -n "${actual_lc}" && "${actual_lc}" == "${expected_lc}" ]]
+}
+
 binary_is_current() {
 	if [[ ! -x "${BINARY_PATH}" ]]; then
 		return 1
@@ -219,29 +434,45 @@ binary_is_current() {
 		return 1
 	fi
 
-	local newer_source
-	newer_source="$(find "${PROJECT_ROOT}/cmd" "${PROJECT_ROOT}/internal" -type f -name '*.go' -newer "${BINARY_PATH}" -print -quit 2>/dev/null)"
+	local newer_source=""
+	local file
+	# Avoid GNU find -quit so busybox/Alpine find works. Process substitution keeps
+	# SIGPIPE from find | head from aborting the script under pipefail.
+	while IFS= read -r file; do
+		newer_source="${file}"
+		break
+	done < <(find "${PROJECT_ROOT}/cmd" "${PROJECT_ROOT}/internal" -type f -name '*.go' -newer "${BINARY_PATH}" -print 2>/dev/null)
 	[[ -z "${newer_source}" ]]
 }
 
 check_build_dependencies() {
 	NEED_GO=0
 	NEED_GIT=0
+	USE_LOCAL_TOOLCHAIN=1
 
 	if ! command -v go >/dev/null 2>&1; then
 		NEED_GO=1
+		USE_LOCAL_TOOLCHAIN=0
 		warn "Go is not installed. Go ${REQUIRED_GO_VERSION} or newer is required to build garga."
-	else
-		INSTALLED_GO_VERSION="$(go env GOVERSION 2>/dev/null || true)"
-		if ! go_version_is_supported "${INSTALLED_GO_VERSION}" "${REQUIRED_GO_VERSION}"; then
-			NEED_GO=1
+	elif go_is_gccgo; then
+		NEED_GO=1
+		USE_LOCAL_TOOLCHAIN=0
+		INSTALLED_GO_VERSION="$(local_go_version)"
+		warn "gccgo is not a supported build compiler. The installer will download official Go ${REQUIRED_GO_VERSION}."
+	elif select_go_toolchain; then
+		if ((USE_LOCAL_TOOLCHAIN == 0)); then
 			warn "Installed ${INSTALLED_GO_VERSION:-Go version unknown} is older than required Go ${REQUIRED_GO_VERSION}."
+			info "The system Go will download toolchain ${REQUIRED_GO_VERSION} instead of replacing the distro package."
 		fi
+	else
+		NEED_GO=1
+		warn "Installed ${INSTALLED_GO_VERSION:-Go version unknown} is too old to build garga or download Go ${REQUIRED_GO_VERSION}."
+		info "The installer will download the official Go ${REQUIRED_GO_VERSION} toolchain from go.dev."
 	fi
 
 	if ! command -v git >/dev/null 2>&1; then
 		NEED_GIT=1
-		warn "Git is not installed. It is required as a fallback for direct Go module downloads."
+		warn "Git is not installed. It is optional when GOPROXY can serve modules, and required for direct VCS fetches."
 	fi
 }
 
@@ -255,81 +486,204 @@ run_as_root() {
 		sudo "$@"
 		return
 	fi
-	fail "Administrative privileges are required, but sudo is unavailable. Run the shown package-manager command as root, then rerun ./install.sh."
+	return 1
 }
 
-install_apt_dependencies() {
-	local packages=(ca-certificates)
-	((NEED_GO)) && packages+=(golang-go)
-	((NEED_GIT)) && packages+=(git)
+install_listed_packages() {
+	local packages=("$@")
+	if ((${#packages[@]} == 0)); then
+		return 0
+	fi
 
-	info "Installing missing dependencies with apt-get: ${packages[*]}"
-	if ! run_as_root apt-get update; then
-		fail "apt-get update failed. Check repository configuration and network access, then rerun ./install.sh."
-	fi
-	if ! run_as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages[@]}"; then
-		fail "apt-get could not install the required packages. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./install.sh."
-	fi
+	case "${OS_KIND}" in
+	linux)
+		if command -v apt-get >/dev/null 2>&1; then
+			info "Installing missing dependencies with apt-get: ${packages[*]}"
+			run_as_root apt-get update && run_as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages[@]}" || return 1
+			return 0
+		fi
+		if command -v dnf >/dev/null 2>&1; then
+			info "Installing missing dependencies with dnf: ${packages[*]}"
+			run_as_root dnf install -y "${packages[@]}" || return 1
+			return 0
+		fi
+		if command -v microdnf >/dev/null 2>&1; then
+			info "Installing missing dependencies with microdnf: ${packages[*]}"
+			run_as_root microdnf install -y "${packages[@]}" || return 1
+			return 0
+		fi
+		if command -v yum >/dev/null 2>&1; then
+			info "Installing missing dependencies with yum: ${packages[*]}"
+			run_as_root yum install -y "${packages[@]}" || return 1
+			return 0
+		fi
+		if command -v tdnf >/dev/null 2>&1; then
+			info "Installing missing dependencies with tdnf: ${packages[*]}"
+			run_as_root tdnf install -y "${packages[@]}" || return 1
+			return 0
+		fi
+		if command -v pacman >/dev/null 2>&1; then
+			info "Installing missing dependencies with pacman: ${packages[*]}"
+			run_as_root pacman -S --needed --noconfirm "${packages[@]}" || return 1
+			return 0
+		fi
+		if command -v zypper >/dev/null 2>&1; then
+			info "Installing missing dependencies with zypper: ${packages[*]}"
+			run_as_root zypper --non-interactive install "${packages[@]}" || return 1
+			return 0
+		fi
+		if command -v apk >/dev/null 2>&1; then
+			info "Installing missing dependencies with apk: ${packages[*]}"
+			run_as_root apk add "${packages[@]}" || return 1
+			return 0
+		fi
+		if command -v xbps-install >/dev/null 2>&1; then
+			info "Installing missing dependencies with xbps-install: ${packages[*]}"
+			run_as_root xbps-install -Sy "${packages[@]}" || return 1
+			return 0
+		fi
+		if command -v eopkg >/dev/null 2>&1; then
+			info "Installing missing dependencies with eopkg: ${packages[*]}"
+			run_as_root eopkg install -y "${packages[@]}" || return 1
+			return 0
+		fi
+		if command -v brew >/dev/null 2>&1; then
+			install_brew_packages "${packages[@]}" || return 1
+			return 0
+		fi
+		warn "No supported Linux package manager was found. Continuing without system packages."
+		return 0
+		;;
+	macos)
+		if command -v brew >/dev/null 2>&1; then
+			install_brew_packages "${packages[@]}" || return 1
+			return 0
+		fi
+		warn "Homebrew is not installed. Continuing without system packages."
+		return 0
+		;;
+	freebsd)
+		info "Installing missing dependencies with pkg: ${packages[*]}"
+		run_as_root pkg install -y "${packages[@]}" || return 1
+		return 0
+		;;
+	openbsd)
+		info "Installing missing dependencies with pkg_add: ${packages[*]}"
+		run_as_root pkg_add "${packages[@]}" || return 1
+		return 0
+		;;
+	netbsd)
+		if ! command -v pkgin >/dev/null 2>&1; then
+			warn "pkgin is not installed. Continuing without system packages."
+			return 0
+		fi
+		info "Installing missing dependencies with pkgin: ${packages[*]}"
+		run_as_root pkgin -y install "${packages[@]}" || return 1
+		return 0
+		;;
+	*)
+		warn "Automatic package installation is not supported on ${OS_NAME}."
+		return 0
+		;;
+	esac
 }
 
-install_dnf_dependencies() {
-	local packages=(ca-certificates)
-	((NEED_GO)) && packages+=(golang)
-	((NEED_GIT)) && packages+=(git)
-	info "Installing missing dependencies with dnf: ${packages[*]}"
-	if ! run_as_root dnf install -y "${packages[@]}"; then
-		fail "dnf could not install the required packages. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./install.sh."
-	fi
-}
-
-install_yum_dependencies() {
-	local packages=(ca-certificates)
-	((NEED_GO)) && packages+=(golang)
-	((NEED_GIT)) && packages+=(git)
-	info "Installing missing dependencies with yum: ${packages[*]}"
-	if ! run_as_root yum install -y "${packages[@]}"; then
-		fail "yum could not install the required packages. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./install.sh."
-	fi
-}
-
-install_pacman_dependencies() {
-	local packages=(ca-certificates)
-	((NEED_GO)) && packages+=(go)
-	((NEED_GIT)) && packages+=(git)
-	info "Installing missing dependencies with pacman: ${packages[*]}"
-	if ! run_as_root pacman -S --needed --noconfirm "${packages[@]}"; then
-		fail "pacman could not install the required packages. Update the system package database safely, install Go >= ${REQUIRED_GO_VERSION} and Git, then rerun ./install.sh."
-	fi
-}
-
-install_zypper_dependencies() {
-	local packages=(ca-certificates)
-	((NEED_GO)) && packages+=(go)
-	((NEED_GIT)) && packages+=(git)
-	info "Installing missing dependencies with zypper: ${packages[*]}"
-	if ! run_as_root zypper --non-interactive install "${packages[@]}"; then
-		fail "zypper could not install the required packages. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./install.sh."
-	fi
-}
-
-install_apk_dependencies() {
-	local packages=(ca-certificates)
-	((NEED_GO)) && packages+=(go)
-	((NEED_GIT)) && packages+=(git)
-	info "Installing missing dependencies with apk: ${packages[*]}"
-	if ! run_as_root apk add "${packages[@]}"; then
-		fail "apk could not install the required packages. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./install.sh."
-	fi
-}
-
-install_brew_dependencies() {
+install_system_packages() {
 	local packages=()
-	((NEED_GO)) && packages+=(go)
-	((NEED_GIT)) && packages+=(git)
-	info "Installing missing dependencies with Homebrew: ${packages[*]}"
-	if ! brew install "${packages[@]}"; then
-		fail "Homebrew could not install the required packages. Resolve the reported error and rerun ./install.sh."
+
+	if ((NEED_GO)) && ! have_downloader; then
+		packages+=(curl)
 	fi
+	if ((NEED_GIT)); then
+		packages+=(git)
+	fi
+	if ((${#packages[@]} == 0)); then
+		return 0
+	fi
+	# Homebrew and BSD package names differ; native Linux repos use ca-certificates.
+	if [[ "${OS_KIND}" == "linux" ]]; then
+		packages=(ca-certificates "${packages[@]}")
+	fi
+
+	if install_listed_packages "${packages[@]}"; then
+		hash -r
+		return 0
+	fi
+	warn "System package installation failed. The installer will continue if a downloader and toolchain are available."
+	hash -r
+	return 0
+}
+
+use_go_root() {
+	local root="$1"
+	PATH="${root}/bin:${PATH}"
+	export PATH
+	hash -r
+}
+
+install_official_go() {
+	local goos goarch filename dest_root catalog archive expected actual kernel machine
+
+	kernel="$(uname -s 2>/dev/null || true)"
+	machine="$(uname -m 2>/dev/null || true)"
+	goos="$(normalize_go_os "${kernel}")" || fail "No official Go archive is published for kernel ${kernel:-unknown}."
+	goarch="$(normalize_go_arch "${machine}")" || fail "No official Go archive is published for architecture ${machine:-unknown}. Install Go >= ${REQUIRED_GO_VERSION} from https://go.dev/dl/ and rerun ./install.sh."
+	filename="$(go_archive_filename "${REQUIRED_GO_VERSION}" "${goos}" "${goarch}")"
+	dest_root="$(official_go_root)"
+
+	if [[ -x "${dest_root}/bin/go" ]]; then
+		use_go_root "${dest_root}"
+		if system_go_is_usable; then
+			success "Reusing cached Go ${REQUIRED_GO_VERSION} at ${dest_root}."
+			return
+		fi
+	fi
+
+	if ! have_downloader; then
+		fail "curl or wget is required to download Go ${REQUIRED_GO_VERSION} from https://go.dev/dl/. Install one of them, then rerun ./install.sh."
+	fi
+
+	GO_FETCH_DIR="$(mktemp -d "${TMPDIR:-/tmp}/garga-go.XXXXXX")"
+	catalog="${GO_FETCH_DIR}/catalog.json"
+	archive="${GO_FETCH_DIR}/${filename}"
+
+	info "Downloading the Go release catalog from go.dev to verify ${filename}."
+	if ! download_url "${GO_DOWNLOAD_CATALOG_URL}" "${catalog}"; then
+		fail "Could not download the Go release catalog. Check internet access and TLS certificates, then rerun ./install.sh."
+	fi
+	expected="$(go_archive_sha256 "${catalog}" "${filename}")" || fail "Go ${REQUIRED_GO_VERSION} has no official archive ${filename}. Install Go from https://go.dev/dl/ and rerun ./install.sh."
+
+	info "Downloading official ${filename}. The archive is SHA-256 verified before use."
+	if ! download_url "${GO_DOWNLOAD_FILE_BASE_URL}/${filename}" "${archive}"; then
+		fail "Could not download ${filename}. Check internet access and TLS certificates, then rerun ./install.sh."
+	fi
+	actual="$(file_sha256 "${archive}")" || fail "No SHA-256 tool was found (sha256sum, shasum, or openssl)."
+	if ! checksums_match "${actual}" "${expected}"; then
+		fail "Checksum mismatch for ${filename}. The download was discarded. Rerun ./install.sh."
+	fi
+
+	mkdir -p -- "$(dirname -- "${dest_root}")"
+	rm -rf -- "${dest_root}.new"
+	mkdir -p -- "${dest_root}.new"
+	if ! tar -C "${dest_root}.new" -xzf "${archive}"; then
+		rm -rf -- "${dest_root}.new"
+		fail "Could not extract ${filename}."
+	fi
+	if [[ ! -x "${dest_root}.new/go/bin/go" ]]; then
+		rm -rf -- "${dest_root}.new"
+		fail "The downloaded Go archive did not contain bin/go."
+	fi
+	rm -rf -- "${dest_root}"
+	mv -- "${dest_root}.new/go" "${dest_root}"
+	rm -rf -- "${dest_root}.new"
+	rm -rf -- "${GO_FETCH_DIR}"
+	GO_FETCH_DIR=""
+
+	use_go_root "${dest_root}"
+	if ! system_go_is_usable; then
+		fail "The downloaded Go toolchain at ${dest_root} is not usable."
+	fi
+	success "Official Go ${REQUIRED_GO_VERSION} is ready at ${dest_root}."
 }
 
 install_windows_dependencies() {
@@ -363,71 +717,16 @@ install_dependencies() {
 		return
 	fi
 
-	case "${OS_KIND}" in
-	linux)
-		if command -v apt-get >/dev/null 2>&1; then
-			install_apt_dependencies
-		elif command -v dnf >/dev/null 2>&1; then
-			install_dnf_dependencies
-		elif command -v yum >/dev/null 2>&1; then
-			install_yum_dependencies
-		elif command -v pacman >/dev/null 2>&1; then
-			install_pacman_dependencies
-		elif command -v zypper >/dev/null 2>&1; then
-			install_zypper_dependencies
-		elif command -v apk >/dev/null 2>&1; then
-			install_apk_dependencies
-		elif command -v brew >/dev/null 2>&1; then
-			install_brew_dependencies
-		else
-			fail "No supported Linux package manager was found. Install Go >= ${REQUIRED_GO_VERSION} and Git, ensure both commands are on PATH, then rerun ./install.sh."
-		fi
-		;;
-	macos)
-		if command -v brew >/dev/null 2>&1; then
-			install_brew_dependencies
-		else
-			fail "Homebrew is required for automatic setup on macOS. Install it from https://brew.sh/, then rerun ./install.sh. Alternatively install Go >= ${REQUIRED_GO_VERSION} and Git manually."
-		fi
-		;;
-	freebsd)
-		local packages=()
-		((NEED_GO)) && packages+=(go)
-		((NEED_GIT)) && packages+=(git)
-		info "Installing missing dependencies with pkg: ${packages[*]}"
-		if ! run_as_root pkg install -y "${packages[@]}"; then
-			fail "pkg could not install the required packages. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./install.sh."
-		fi
-		;;
-	openbsd)
-		local packages=()
-		((NEED_GO)) && packages+=(go)
-		((NEED_GIT)) && packages+=(git)
-		info "Installing missing dependencies with pkg_add: ${packages[*]}"
-		if ! run_as_root pkg_add "${packages[@]}"; then
-			fail "pkg_add could not install the required packages. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./install.sh."
-		fi
-		;;
-	netbsd)
-		if ! command -v pkgin >/dev/null 2>&1; then
-			fail "pkgin is required for automatic setup on NetBSD. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./install.sh."
-		fi
-		local packages=()
-		((NEED_GO)) && packages+=(go)
-		((NEED_GIT)) && packages+=(git)
-		info "Installing missing dependencies with pkgin: ${packages[*]}"
-		if ! run_as_root pkgin -y install "${packages[@]}"; then
-			fail "pkgin could not install the required packages. Install Go >= ${REQUIRED_GO_VERSION} and Git manually, then rerun ./install.sh."
-		fi
-		;;
-	windows)
+	if [[ "${OS_KIND}" == "windows" ]]; then
 		install_windows_dependencies
-		;;
-	*)
-		fail "Automatic dependency installation is not supported on ${OS_NAME}. Install Go >= ${REQUIRED_GO_VERSION} and Git, ensure both commands are on PATH, then rerun ./install.sh."
-		;;
-	esac
+		hash -r
+		return
+	fi
 
+	install_system_packages
+	if ((NEED_GO)); then
+		install_official_go
+	fi
 	hash -r
 }
 
@@ -435,22 +734,49 @@ verify_build_dependencies() {
 	if ! command -v go >/dev/null 2>&1; then
 		fail "Go is still unavailable after installation. Open a new terminal or add the Go bin directory to PATH, then rerun ./install.sh."
 	fi
-	INSTALLED_GO_VERSION="$(go env GOVERSION 2>/dev/null || true)"
-	if ! go_version_is_supported "${INSTALLED_GO_VERSION}" "${REQUIRED_GO_VERSION}"; then
-		fail "${INSTALLED_GO_VERSION:-The installed Go version} does not satisfy Go ${REQUIRED_GO_VERSION}. Upgrade from https://go.dev/dl/, ensure the new go command is on PATH, then rerun ./install.sh."
+	if ! select_go_toolchain; then
+		fail "${INSTALLED_GO_VERSION:-The installed Go version} does not satisfy Go ${REQUIRED_GO_VERSION} and cannot download that toolchain. Upgrade from https://go.dev/dl/, ensure the new go command is on PATH, then rerun ./install.sh."
 	fi
 	if ! command -v git >/dev/null 2>&1; then
-		fail "Git is still unavailable after installation. Open a new terminal or add Git to PATH, then rerun ./install.sh."
+		warn "Git is unavailable. Module downloads will use GOPROXY; direct VCS fetches may fail."
 	fi
-	success "Build dependencies are ready (${INSTALLED_GO_VERSION}, $(git --version))."
+	success "Build dependencies are ready (${INSTALLED_GO_VERSION}$(command -v git >/dev/null 2>&1 && printf ', %s' "$(git --version)"))."
+}
+
+go_build_garga() {
+	local output="$1"
+	local version commit built_at
+	version="$(tr -d ' \n\r\t' <"${PROJECT_ROOT}/VERSION" 2>/dev/null || true)"
+	if [[ -z "${version}" ]]; then
+		version="dev"
+	fi
+	commit="none"
+	if command -v git >/dev/null 2>&1; then
+		commit="$(git -C "${PROJECT_ROOT}" rev-parse HEAD 2>/dev/null || echo none)"
+	fi
+	built_at="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)"
+	CGO_ENABLED=0 go build -trimpath -buildvcs=false \
+		-ldflags "-s -w -X main.version=${version} -X main.commit=${commit} -X main.builtAt=${built_at}" \
+		-o "${output}" "${PROJECT_ROOT}/cmd/garga"
 }
 
 build_application() {
-	export GOTOOLCHAIN=local
+	# Prefer the local compiler when it satisfies go.mod. Distro packages often
+	# lag by a patch; official Go 1.21+ can then fetch the matching toolchain.
+	# Force auto so a user GOTOOLCHAIN=local cannot block a needed download.
+	if ((USE_LOCAL_TOOLCHAIN)); then
+		export GOTOOLCHAIN=local
+	else
+		export GOTOOLCHAIN=auto
+		info "Using GOTOOLCHAIN=auto so Go can download toolchain ${REQUIRED_GO_VERSION}."
+	fi
 
 	info "Downloading missing Go modules. Cached modules will not be reinstalled."
 	if ! go mod download; then
-		fail "Go module download failed. Check internet access, TLS certificates, and GOPROXY, then rerun ./install.sh."
+		if ((USE_LOCAL_TOOLCHAIN)); then
+			fail "Go module download failed. Check internet access, TLS certificates, and GOPROXY, then rerun ./install.sh."
+		fi
+		fail "Go module or toolchain download failed. Check internet access, TLS certificates, and GOPROXY, then rerun ./install.sh."
 	fi
 	if ! go mod verify; then
 		fail "Go module verification failed. Clear the affected module cache entry only after reviewing the error, then rerun ./install.sh."
@@ -459,7 +785,7 @@ build_application() {
 	mkdir -p -- "$(dirname -- "${BINARY_PATH}")"
 	TEMP_BINARY="$(mktemp "${BINARY_PATH}.tmp.XXXXXX")"
 	info "Building garga. The existing binary will remain untouched if the build fails."
-	if ! make -C "${PROJECT_ROOT}" build BINARY="${TEMP_BINARY}"; then
+	if ! go_build_garga "${TEMP_BINARY}"; then
 		fail "garga build failed. Review the compiler output, correct the reported issue, and rerun ./install.sh."
 	fi
 	chmod 0755 "${TEMP_BINARY}"

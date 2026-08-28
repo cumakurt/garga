@@ -4,6 +4,15 @@ All notable changes to garga are documented in this file.
 
 ## Unreleased
 
+### Fixed
+
+- `install.sh` now probes the local official `go` binary with `GOTOOLCHAIN=local` and no longer
+  installs distro `golang` packages. Distro compilers that trail `go.mod` (for example Kali
+  `golang-go` 1.26.5 while the module requires 1.26.6) use `GOTOOLCHAIN=auto`. Missing, gccgo,
+  or pre-1.21 compilers download the official `go.dev` archive with SHA-256 verification.
+  GNU Make is not required. Git is optional when GOPROXY can serve modules. Linux package
+  manager coverage includes `microdnf`, `tdnf`, `xbps-install`, and `eopkg`.
+
 ## [0.1.0] - 2026-08-28
 
 First public release. CLI flags, configuration keys, and streaming finding schema `1.0` are the

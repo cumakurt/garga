@@ -186,10 +186,16 @@ machine-readable secrets output stay masked; the PDF is the confidential engagem
 
 `install.sh` **only installs**. It does not run `garga` commands.
 
-It detects the OS, installs missing Go/Git through a supported system package manager when
-needed, downloads missing Go modules, builds `bin/garga` atomically, and copies the binary to
-`PREFIX/bin` (default `/usr/local/bin`). When `bin/garga` is already current, it skips the
-rebuild.
+It detects the OS, installs missing Git/curl through a supported system package manager when
+needed, downloads missing Go modules, builds `bin/garga` atomically (GNU Make is not required),
+and copies the binary to `PREFIX/bin` (default `/usr/local/bin`). When `bin/garga` is already
+current, it skips the rebuild.
+
+The version check uses the local official `go` binary (`GOTOOLCHAIN=local`). Distro packages
+that trail `go.mod` by a patch are kept: Go 1.21+ downloads the matching toolchain. gccgo and
+Go older than 1.21 are not used; the installer downloads the official `go.mod` toolchain from
+`go.dev`, verifies the SHA-256 digest, and caches it under `GARGA_GO_CACHE` (default
+`~/.cache/garga/go`). It does not install distro `golang` packages, which are often too old.
 
 Writing under `/usr/local` typically requires root:
 
@@ -209,11 +215,14 @@ User-local install (if `~/.local/bin` is on `PATH`):
 | `--rebuild` | Rebuild even when `bin/garga` is current |
 | `--prefix DIR` / `PREFIX` | Install into `DIR/bin` (default `/usr/local`) |
 | `DESTDIR` | Staging root prepended to `PREFIX` |
+| `GARGA_GO_CACHE` | Directory for a downloaded official Go toolchain |
 
-Supported automatic package managers include `apt-get`, `dnf`, `yum`, `pacman`, `zypper`,
-`apk`, Homebrew, BSD package managers, and `winget` from a Windows-compatible shell. The
-installer does not execute remote install scripts. If a manager is missing or supplies an old
-Go version, it prints the manual action and leaves the existing binary untouched.
+Supported automatic package managers include `apt-get`, `dnf`, `microdnf`, `yum`, `tdnf`,
+`pacman`, `zypper`, `apk`, `xbps-install`, `eopkg`, Homebrew, BSD package managers, and
+`winget` from a Windows-compatible shell. They are used only for Git, curl, and CA
+certificates — never for the Go compiler. The installer does not execute remote shell
+installers. Official Go archives are SHA-256 verified. If no usable toolchain can be obtained,
+the installer prints the manual action and leaves the existing binary untouched.
 
 After installation:
 
